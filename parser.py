@@ -40,7 +40,8 @@ global options, args, BWB_dict
 def main ():
     start_time = time.time()
     stage_start_time = time.time()
-    parameters = {'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'10', 'return':'DOC'}
+    parameters = {'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'10', 'return':'DOC', 'sort':'DESC'}
+    
     print "Loading BWB data..."
     BWB_dict = get_bwb_name_dict()
     print("Completed loading BWB data in {:.2f} seconds".format((time.time() - stage_start_time)))
@@ -61,14 +62,14 @@ def main ():
         for ref in refList:
             total += 1
             law = LawRegEx.match(ref).group(1)
-            print LawRegEx.match(ref).group()
+            # print LawRegEx.match(ref).group()
             if law is not None:
                 law = law.strip().lower()
                 if law in BWB_dict:
-                    print("{} --> {}".format(law, BWB_dict.get(law)))
+                    # print("{} --> {}".format(law, BWB_dict.get(law)))
                     succes += 1 
                 else:
-                    print("{} --> No Match".format(law))
+                    # print("{} --> No Match".format(law))
                     fail += 1
     print("Completed parsing references in {:.2f} seconds".format((time.time() - stage_start_time)))
     print("{} out of {} ({:.2%}) were successful,\n{} out of {} ({:.2%}) came back without a match,\nin a total time of {:.2f} seconds".format(succes, total, (float(succes)/float(total)), fail, total, (float(fail)/float(total)),(time.time() - start_time)))
@@ -131,6 +132,8 @@ def get_bwb_name_dict(XML=get_bwb_info()):
                     titelNode = titel.find("./bwb:titel", namespaces=nameSpace)
                     if titelNode is not None:
                         # Add Citeertitel to the dictonary if it exists
+                        cleanedTitel = re.sub("[\d]", "", get_plain_text(titelNode).lower()).strip()
+                        dict[cleanedTitel].append(BWBId)
                         dict[get_plain_text(titelNode).lower()].append(BWBId)
                         
             #Parse NietOfficieleTitelLijst
