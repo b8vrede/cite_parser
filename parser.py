@@ -34,46 +34,35 @@ import urllib
 import urllib2
 import xml.etree.ElementTree as ET
 from collections import defaultdict
+from multiprocessing import Process, Manager, Value
 
-global options, args, BWB_dict
+global stage_start_time, BWB_dict, eclis
 
-def main ():
-    start_time = time.time()
+def parse_references(eclis, BWB_dict, total, succes, fail):    
     stage_start_time = time.time()
-    parameters = {'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'10', 'return':'DOC', 'sort':'DESC'}
-    
-    print "Loading BWB data..."
-    BWB_dict = get_bwb_name_dict()
-    print("Completed loading BWB data in {:.2f} seconds".format((time.time() - stage_start_time)))
-    stage_start_time = time.time()
-    
-    print("Loading ECLI data...".format((stage_start_time - start_time)))
-    eclis = get_eclis(parameters)
-    print("Completed loading ECLI data in {:.2f} seconds".format((time.time() - stage_start_time)))
-    stage_start_time = time.time()
-    
-    print("Parsing references...".format((time.time() - stage_start_time)))
+    print("Parsing references...".format())
     LawRegEx = re.compile('(?:[Aa]rtikel|[Aa]rt\\.) [0-9][0-9a-z:.]*(?:,? (?:lid|aanhef en lid|aanhef en onder|onder)? [0-9a-z]+,?|,? [a-z]+ lid,?)?(?:,? onderdeel [a-z],?)?(?:,? sub [0-9],?)?(?:(?: van (?:de|het)(?: wet)?|,?)? ((?:[A-Z][a-zA-Z]* ?|op de ?|wet ?|bestuursrecht ?)+))?(?: *\\(.*?\\))?')
-    succes = 0
-    total = 0
-    fail = 0
-    for e in eclis:
-        refList = find_references(get_plain_text(get_document(e.text)))
-        for ref in refList:
-            total += 1
-            law = LawRegEx.match(ref).group(1)
-            # print LawRegEx.match(ref).group()
-            if law is not None:
-                law = law.strip().lower()
-                if law in BWB_dict:
-                    # print("{} --> {}".format(law, BWB_dict.get(law)))
-                    succes += 1 
-                else:
-                    # print("{} --> No Match".format(law))
-                    fail += 1
-    print("Completed parsing references in {:.2f} seconds".format((time.time() - stage_start_time)))
-    print("{} out of {} ({:.2%}) were successful,\n{} out of {} ({:.2%}) came back without a match,\nin a total time of {:.2f} seconds".format(succes, total, (float(succes)/float(total)), fail, total, (float(fail)/float(total)),(time.time() - start_time)))
 
+    while len(eclis) > 0:
+        e = eclis.pop()
+    # for e in eclis:
+        Ecli = get_plain_text(get_document(e.text))
+        if Ecli is not None:
+            refList = find_references(Ecli)
+            for ref in refList:
+                total.value += 1
+                law = LawRegEx.match(ref).group(1)
+                # print LawRegEx.match(ref).group()
+                if law is not None:
+                    law = law.strip().lower()
+                    if law in BWB_dict:
+                        # print("{} --> {}".format(law, BWB_dict.get(law)))
+                        succes.value += 1 
+                    else:
+                        # print("{} --> No Match".format(law))
+                        fail.value += 1
+    print("Completed parsing references in {:.2f} seconds".format((time.time() - stage_start_time)))
+    
 def find_references(document):
     references = {}
     ReferenceRegEx = re.compile('((?:[Aa]rtikel|[Aa]rt\\.) [0-9][0-9a-z:.]*(?:,? (?:lid|aanhef en lid|aanhef en onder|onder)? [0-9a-z]+,?|,? [a-z]+ lid,?)?(?:,? onderdeel [a-z],?)?(?:,? sub [0-9],?)?(?:(?: van (?:de|het)(?: wet)?|,?)? (?:[A-Z][a-zA-Z]* ?|op de ?|wet ?|bestuursrecht ?)+)?(?: *\\(.*?\\))?)')
@@ -81,10 +70,16 @@ def find_references(document):
     return ReferenceRegEx.findall(document)
 
 def get_eclis(parameters={'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'100', 'return':'DOC'}):
+    stage_start_time = time.time()
+    print("Loading ECLI data...".format())
     encoded_parameters = urllib.urlencode(parameters)
     feed = urllib2.urlopen("http://data.rechtspraak.nl/uitspraken/zoeken?"+encoded_parameters)
     nameSpace = {'xmlns':'http://www.w3.org/2005/Atom'}
-    return ET.parse(feed).findall("./xmlns:entry/xmlns:id", namespaces=nameSpace)
+    eclis = ET.parse(feed).findall("./xmlns:entry/xmlns:id", namespaces=nameSpace)
+    print("Completed loading ECLI data in {:.2f} seconds".format((time.time() - stage_start_time)))
+    stage_start_time = time.time()
+    
+    return eclis
     
 def get_document(ecli):
     encoded_parameters = urllib.urlencode({'id':ecli})
@@ -97,12 +92,17 @@ def get_document(ecli):
     return element
     
 def get_plain_text(xml, encoding='UTF-8'):
-    return ET.tostring(xml, encoding, method='text').strip()
+    if xml is not None:
+        return ET.tostring(xml, encoding, method='text').strip()
+    else:
+        return None
 
 def get_bwb_info(file = 'BWBIdList.xml'):
     return ET.parse(file)
     
 def get_bwb_name_dict(XML=get_bwb_info()):
+    stage_start_time = time.time()
+    print "Loading BWB data..."
     # Create an list dictonary
     dict = defaultdict(list)
     
@@ -149,7 +149,38 @@ def get_bwb_name_dict(XML=get_bwb_info()):
                 # If there are 1 or more Afkorting's iterate through them
                 for titel in titelLijst:
                     dict[get_plain_text(titel).lower()].append(BWBId)
+    print("Completed loading BWB data in {:.2f} seconds".format((time.time() - stage_start_time)))
+    stage_start_time = time.time()
     return dict
-        
 
-main()
+if __name__ == '__main__':    
+    start_time = time.time()
+    parameters = {'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'1000', 'return':'DOC', 'sort':'DESC'}
+
+    BWB_dict = get_bwb_name_dict()
+
+    eclis = get_eclis(parameters)
+    
+    if len(eclis) > 0:
+        print("Preparing Workers....")
+        succes = Value('i',0)
+        total = Value('i',0)
+        fail = Value('i',0)
+        manager = Manager()
+    
+        ecliManager = manager.list(eclis)
+        BWBManager = manager.dict(BWB_dict)
+        jobs = []
+        for i in range(4):
+            p = Process(target=parse_references, args=(ecliManager, BWBManager, total, succes, fail))
+            jobs.append(p)
+            print("Worker {} Started".format(i))
+            p.start()
+		
+        while len(ecliManager) > 0:
+            # print len(ecliManager)
+            time.sleep(1)
+        
+        for p in jobs:
+            p.terminate()
+        print("{} out of {} ({:.2%}) were successful,\n{} out of {} ({:.2%}) came back without a match,\nin a total time of {:.2f} seconds".format(succes.value, total.value, (float(succes.value)/float(total.value)), fail.value, total.value, (float(fail.value)/float(total.value)),(time.time() - start_time)))
