@@ -29,6 +29,7 @@ VERSION
 
 import sys, os, traceback, optparse
 import time
+import socket
 import re
 import urllib
 import urllib2
@@ -48,7 +49,10 @@ def parse_references(eclis, BWB_dict, total, succes, fail):
     # for e in eclis:
         Ecli = get_plain_text(get_document(e.text))
         if Ecli is not None:
+
             refList = find_references(Ecli)
+            if refList is None:
+                eclis.append(e)
             for ref in refList:
                 total.value += 1
                 law = LawRegEx.match(ref).group(1)
@@ -83,13 +87,20 @@ def get_eclis(parameters={'subject':'http://psi.rechtspraak.nl/rechtsgebied#best
     
 def get_document(ecli):
     encoded_parameters = urllib.urlencode({'id':ecli})
-    feed = urllib2.urlopen("http://data.rechtspraak.nl/uitspraken/content?"+encoded_parameters)
-    nameSpace = {'rdf':'http://www.w3.org/1999/02/22-rdf-syntax-ns#', 'ecli':'https://e-justice.europa.eu/ecli',
-        'eu':'http://publications.europa.eu/celex/', 'dcterms':'http://purl.org/dc/terms/',
-        'bwb':'bwb-dl', 'cvdr':'http://decentrale.regelgeving.overheid.nl/cvdr/', 'rdfs':'http://www.w3.org/2000/01/rdf-schema#',
-        'preserve':'http://www.rechtspraak.nl/schema/rechtspraak-1.0'}
-    element = ET.parse(feed).find("./preserve:uitspraak", namespaces=nameSpace)
-    return element
+    try:
+        feed = urllib2.urlopen("http://data.rechtspraak.nl/uitspraken/content?"+encoded_parameters, timeout = 3)
+    except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as err:
+        print("{} timed out, retrying in 3 seconds!".format(ecli))
+        time.sleep(3)
+        pass
+        return None
+    else:
+        nameSpace = {'rdf':'http://www.w3.org/1999/02/22-rdf-syntax-ns#', 'ecli':'https://e-justice.europa.eu/ecli',
+            'eu':'http://publications.europa.eu/celex/', 'dcterms':'http://purl.org/dc/terms/',
+            'bwb':'bwb-dl', 'cvdr':'http://decentrale.regelgeving.overheid.nl/cvdr/', 'rdfs':'http://www.w3.org/2000/01/rdf-schema#',
+            'preserve':'http://www.rechtspraak.nl/schema/rechtspraak-1.0'}
+        element = ET.parse(feed).find("./preserve:uitspraak", namespaces=nameSpace)
+        return element
     
 def get_plain_text(xml, encoding='UTF-8'):
     if xml is not None:
@@ -155,8 +166,10 @@ def get_bwb_name_dict(XML=get_bwb_info()):
 
 if __name__ == '__main__':    
     start_time = time.time()
-    parameters = {'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'1000', 'return':'DOC', 'sort':'DESC'}
-
+    parameters = {'max':'10000', 'return':'DOC', 'sort':'DESC'}
+    # 'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht',
+    processes = 4
+    
     BWB_dict = get_bwb_name_dict()
 
     eclis = get_eclis(parameters)
@@ -171,16 +184,25 @@ if __name__ == '__main__':
         ecliManager = manager.list(eclis)
         BWBManager = manager.dict(BWB_dict)
         jobs = []
-        for i in range(4):
+        for i in range(processes):
             p = Process(target=parse_references, args=(ecliManager, BWBManager, total, succes, fail))
             jobs.append(p)
-            print("Worker {} Started".format(i))
             p.start()
+            print("{} Started".format(p.name))
 		
         while len(ecliManager) > 0:
-            # print len(ecliManager)
-            time.sleep(1)
+            if(len(ecliManager) != len(eclis)):
+                print("{} ECLI's remaining".format(len(ecliManager)))
+            time.sleep(2)
         
-        for p in jobs:
-            p.terminate()
+        LivingAgents = processes
+        while LivingAgents != 0:
+            for p in jobs:
+                if p.is_alive():
+                    print("Waiting for {} to return...".format(p.name))
+                else:
+                    LivingAgents -= 1
+                    jobs.remove(p)
+            time.sleep(1)
+            
         print("{} out of {} ({:.2%}) were successful,\n{} out of {} ({:.2%}) came back without a match,\nin a total time of {:.2f} seconds".format(succes.value, total.value, (float(succes.value)/float(total.value)), fail.value, total.value, (float(fail.value)/float(total.value)),(time.time() - start_time)))
