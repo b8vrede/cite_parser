@@ -39,12 +39,13 @@ from multiprocessing import Process, Manager, Value
 
 global stage_start_time, BWB_dict, eclis
 
-def parse_references(eclis, BWB_dict, total, succes, fail):    
+def parse_references(eclis, BWB_dict, total, succes, fail, failedRefs):    
     stage_start_time = time.time()
     print("Parsing references...".format())
     LawRegEx = re.compile('(?:[Aa]rtikel|[Aa]rt\\.) [0-9][0-9a-z:.]*(?:,? (?:lid|aanhef en lid|aanhef en onder|onder)? [0-9a-z]+,?|,? [a-z]+ lid,?)?(?:,? onderdeel [a-z],?)?(?:,? sub [0-9],?)?(?:(?: van (?:de|het)(?: wet)?|,?)? ((?:[A-Z][a-zA-Z]* ?|op de ?|wet ?|bestuursrecht ?)+))?(?: *\\(.*?\\))?')
-
+    
     while len(eclis) > 0:
+        printText = 0
         e = eclis.pop()
     # for e in eclis:
         Ecli = get_plain_text(get_document(e.text))
@@ -65,6 +66,21 @@ def parse_references(eclis, BWB_dict, total, succes, fail):
                     else:
                         # print("{} --> No Match".format(law))
                         fail.value += 1
+                        printText += 1
+                        if law in failedRefs:
+                            failedRefs[law] += 1
+                        else:
+                            failedRefs[law] = 1
+                            
+                else:
+                    printText += 1
+            if printText > 15:
+                file = os.path.normpath('candidates/candidate_'+re.sub(":", "-", e.text)+'.txt')
+                ET.ElementTree(get_document(e.text)).write(file, encoding='UTF-8', method='text')
+                with open(file, "a") as myfile:
+                    myfile.write('REFERENCES\n')
+                    for ref in refList:
+                        myfile.write(ref+'\n')
     print("Completed parsing references in {:.2f} seconds".format((time.time() - stage_start_time)))
     
 def find_references(document):
@@ -166,8 +182,8 @@ def get_bwb_name_dict(XML=get_bwb_info()):
 
 if __name__ == '__main__':    
     start_time = time.time()
-    parameters = {'max':'10000', 'return':'DOC', 'sort':'DESC'}
-    # 'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht',
+    parameters = {'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'200', 'return':'DOC', 'sort':'DESC'}
+
     processes = 4
     
     BWB_dict = get_bwb_name_dict()
@@ -179,13 +195,17 @@ if __name__ == '__main__':
         succes = Value('i',0)
         total = Value('i',0)
         fail = Value('i',0)
+        
         manager = Manager()
-    
         ecliManager = manager.list(eclis)
+
         BWBManager = manager.dict(BWB_dict)
+        failedRefs = manager.dict()
+        printList = manager.list()
+        
         jobs = []
         for i in range(processes):
-            p = Process(target=parse_references, args=(ecliManager, BWBManager, total, succes, fail))
+            p = Process(target=parse_references, args=(ecliManager, BWBManager, total, succes, fail, failedRefs))
             jobs.append(p)
             p.start()
             print("{} Started".format(p.name))
@@ -205,4 +225,4 @@ if __name__ == '__main__':
                     jobs.remove(p)
             time.sleep(1)
             
-        print("{} out of {} ({:.2%}) were successful,\n{} out of {} ({:.2%}) came back without a match,\nin a total time of {:.2f} seconds".format(succes.value, total.value, (float(succes.value)/float(total.value)), fail.value, total.value, (float(fail.value)/float(total.value)),(time.time() - start_time)))
+        print("{} out of {} ({:.2%}) were successful,\n{} out of {} ({:.2%}) came back without a match,\nin a total time of {:.2f} seconds".format(succes.value, total.value, (float(succes.value)/float(total.value)), fail.value, total.value, (float(fail.value)/float(total.value)),(time.time() - start_time), failedRefs))
