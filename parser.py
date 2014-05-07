@@ -39,7 +39,7 @@ from multiprocessing import Process, Manager, Value
 
 global stage_start_time, BWB_dict, eclis
 
-def parse_references(eclis, BWB_dict, total, succes, fail, failedRefs):    
+def parse_references(eclis, BWB_dict, total, succes, fail, failedRefs, minPrintError):    
     stage_start_time = time.time()
     print("Parsing references...".format())
     LawRegEx = re.compile('(?:[Aa]rtikel|[Aa]rt\\.) [0-9][0-9a-z:.]*(?:,? (?:lid|aanhef en lid|aanhef en onder|onder)? [0-9a-z]+,?|,? [a-z]+ lid,?)?(?:,? onderdeel [a-z],?)?(?:,? sub [0-9],?)?(?:(?: van (?:de|het)(?: wet)?|,?)? ((?:[A-Z][a-zA-Z]* ?|op de ?|wet ?|bestuursrecht ?)+))?(?: *\\(.*?\\))?')
@@ -74,7 +74,7 @@ def parse_references(eclis, BWB_dict, total, succes, fail, failedRefs):
                             
                 else:
                     printText += 1
-            if printText > 15:
+            if minPrintError is not None and printText > minPrintError:
                 file = os.path.normpath('candidates/candidate_'+re.sub(":", "-", e.text)+'.txt')
                 ET.ElementTree(get_document(e.text)).write(file, encoding='UTF-8', method='text')
                 with open(file, "a") as myfile:
@@ -180,11 +180,21 @@ def get_bwb_name_dict(XML=get_bwb_info()):
     stage_start_time = time.time()
     return dict
 
-if __name__ == '__main__':    
+if __name__ == '__main__':
+    usage = "usage: %prog [options]"
+    parser = optparse.OptionParser(usage=usage)
+    parser.add_option("-p", "--print",
+                      action="store", type="int", metavar="X", dest="minPrintError",
+                      help="Prints a text file for cases with more than X errors")
+    parser.add_option("-m", "--multi",
+                      action="store", type="int", metavar="X", dest="processes", default="2",
+                      help="Creates X processes in order to speed up the parsing")
+    (options, args) = parser.parse_args()
+    
     start_time = time.time()
     parameters = {'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'200', 'return':'DOC', 'sort':'DESC'}
 
-    processes = 4
+    processes = options.processes
     
     BWB_dict = get_bwb_name_dict()
 
@@ -205,7 +215,7 @@ if __name__ == '__main__':
         
         jobs = []
         for i in range(processes):
-            p = Process(target=parse_references, args=(ecliManager, BWBManager, total, succes, fail, failedRefs))
+            p = Process(target=parse_references, args=(ecliManager, BWBManager, total, succes, fail, failedRefs, options.minPrintError))
             jobs.append(p)
             p.start()
             print("{} Started".format(p.name))
