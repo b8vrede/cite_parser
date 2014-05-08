@@ -27,7 +27,7 @@ VERSION
     0.0.1
 """
 
-import sys, os, traceback, optparse
+import sys, os, traceback, argparse
 import time
 import socket
 import re
@@ -40,7 +40,7 @@ from multiprocessing import Process, Manager, Value
 
 global stage_start_time, BWB_dict, eclis
 
-def parse_references(eclis, BWB_dict, total, succes, fail, refs, minPrintError, regex):    
+def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex):    
     stage_start_time = time.time()
     print("Parsing references...".format())
     ReferenceRegEx = re.compile(regex)
@@ -48,10 +48,11 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, minPrintError, 
         errorScore = 0
         e = eclis.pop()
     # for e in eclis:
-        Ecli = get_plain_text(get_document(e.text))
-        if Ecli is not None:
+        ecliFile = get_ecli_file(e.text)
+        ecliDocument = get_plain_text(get_document(e.text, ecliFile))
+        if ecliDocument is not None:
             cleanLaw = None
-            refList = find_references(Ecli, regex)
+            refList = find_references(ecliDocument, regex)
             if refList is None:
                 eclis.append(e)
             for ref in refList:
@@ -72,18 +73,46 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, minPrintError, 
                 elif cleanLaw is not None:
                     succes.value += 1
                 # Add found element to references
-                tuple = {"ReferenceString":ref[0], "EClI":e.text, "BWBList":BWB}
+                tuple = {"ReferenceString":ref[0], "RawBWB":BWB}
                 if e.text in refs:
                     result = refs[e.text]
                     result.append(tuple)
                 else:
                     result = [tuple]
                 refs[e.text] = result
+            
+            if args.xmlOutput:
+                nameSpace = {'rdf':'http://www.w3.org/1999/02/22-rdf-syntax-ns#', 'ecli':'https://e-justice.europa.eu/ecli',
+                'eu':'http://publications.europa.eu/celex/', 'dcterms':'http://purl.org/dc/terms/',
+                'bwb':'bwb-dl', 'cvdr':'http://decentrale.regelgeving.overheid.nl/cvdr/', 'rdfs':'http://www.w3.org/2000/01/rdf-schema#',
+                'preserve':'http://www.rechtspraak.nl/schema/rechtspraak-1.0'}
                 
-            if minPrintError is not None and errorScore >= minPrintError:
+                root = ecliFile.find("./rdf:RDF/rdf:Description[@rdf:about]", namespaces=nameSpace)
+                if root is not None:
+                    for tuple in refs[e.text]:
+                        parentRefNode = ET.SubElement(root, "ns1:references")
+                        parentRefNode.set("ns2:label", "Wetsverwijzing")
+                        parentRefNode.set("resourceIdentifier", " ".join(tuple.get("RawBWB")))
+                        parentRefNode.text = tuple.get("ReferenceString")
+               
+                    print("Exporting XML output file....")
+                    file = os.path.normpath('ECLIs/'+re.sub(":", "-", e.text)+'.txt')
+                    if args.prettyPrint:
+                        # rawXML = ET.tostring(ecliFile, 'utf-8')
+                        rawXML = ET.tostring(ecliFile.getroot(), method='xml')
+                        domXML = parseString(re.sub("\s*\n\s*", "", rawXML))
+                        outputXML = domXML.toprettyxml(indent="\t").encode('utf-8')
+                        with open(file, "w") as myfile:
+                            myfile.write(outputXML)
+                    else:
+                        ecliFile.write(file, method='xml') # encoding='utf8', 
+                else:
+                    print "No Meta data found"
+                    
+            if args.minPrintError is not None and errorScore >= args.minPrintError:
                 file = os.path.normpath('candidates/candidate_'+re.sub(":", "-", e.text)+'.txt')
                 ET.ElementTree(get_document(e.text)).write(file, encoding='UTF-8', method='text')
-                with open(file, "a") as myfile:
+                with open(file, "w") as myfile:
                     myfile.write('REFERENCES\n')
                     for ref in refList:
                         myfile.write(str(ref)+'\n')
@@ -104,8 +133,8 @@ def get_eclis(parameters={'subject':'http://psi.rechtspraak.nl/rechtsgebied#best
     stage_start_time = time.time()
     
     return eclis
-    
-def get_document(ecli):
+
+def get_ecli_file(ecli):
     encoded_parameters = urllib.urlencode({'id':ecli})
     try:
         feed = urllib2.urlopen("http://data.rechtspraak.nl/uitspraken/content?"+encoded_parameters, timeout = 3)
@@ -115,12 +144,15 @@ def get_document(ecli):
         pass
         return None
     else:
-        nameSpace = {'rdf':'http://www.w3.org/1999/02/22-rdf-syntax-ns#', 'ecli':'https://e-justice.europa.eu/ecli',
+        element = ET.parse(feed)
+        return element
+        
+def get_document(ecli, element):
+    nameSpace = {'rdf':'http://www.w3.org/1999/02/22-rdf-syntax-ns#', 'ecli':'https://e-justice.europa.eu/ecli',
             'eu':'http://publications.europa.eu/celex/', 'dcterms':'http://purl.org/dc/terms/',
             'bwb':'bwb-dl', 'cvdr':'http://decentrale.regelgeving.overheid.nl/cvdr/', 'rdfs':'http://www.w3.org/2000/01/rdf-schema#',
             'preserve':'http://www.rechtspraak.nl/schema/rechtspraak-1.0'}
-        element = ET.parse(feed).find("./preserve:uitspraak", namespaces=nameSpace)
-        return element
+    return element.find("./preserve:uitspraak", namespaces=nameSpace)
     
 def get_plain_text(xml, encoding='UTF-8'):
     if xml is not None:
@@ -185,21 +217,20 @@ def get_bwb_name_dict(XML=get_bwb_info()):
     return dict
 
 if __name__ == '__main__':
-    usage = "usage: %prog [options]"
-    parser = optparse.OptionParser(usage=usage)
-    parser.add_option("-x", "--xmlOutput", "--xml",
+    parser = argparse.ArgumentParser(description='Downloads ECLIs and adds references to them')
+    parser.add_argument("-x", "--xmlOutput", "--xml",
                       action="store_true", dest="xmlOutput", default=False,
                       help="Outputs references in XML file")
-    parser.add_option("--pretty",
+    parser.add_argument("--pretty",
                       action="store_true", dest="prettyPrint", default=False,
                       help="Prints formatted XML (takes longer)")
-    parser.add_option("-p", "--print",
-                      action="store", type="int", metavar="X", dest="minPrintError",
+    parser.add_argument("-p", "--print",
+                      action="store", type=int, metavar="X", dest="minPrintError",
                       help="Prints a text file for cases with more than X errors")
-    parser.add_option("-m", "--multi",
-                      action="store", type="int", metavar="X", dest="processes", default="1",
+    parser.add_argument("-m", "--multi",
+                      action="store", type=int, metavar="X", dest="processes", default="1",
                       help="Creates X processes in order to speed up the parsing")
-    (options, args) = parser.parse_args()
+    args = parser.parse_args()
     
     start_time = time.time()
     regex = ('((?:[Aa]rtikel|[Aa]rt\\.) ([0-9][0-9a-z:.]*),?'                #Matches Artikel and captures the number (and letter) combination for the article
@@ -211,9 +242,9 @@ if __name__ == '__main__':
             '((?:(?:[A-Z0-9][a-zA-Z0-9]*|de|wet|bestuursrecht) *)+))? *'    # matches the Title
             '(?:\(([^\)]+?)\))?)')                                           # matches anything between () after the title
     
-    parameters = {'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'100', 'return':'DOC', 'sort':'DESC'}
+    parameters = {'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'1', 'return':'DOC', 'sort':'DESC'}
 
-    processes = options.processes
+    processes = args.processes
     
     BWB_dict = get_bwb_name_dict()
 
@@ -233,11 +264,11 @@ if __name__ == '__main__':
         refs = manager.dict(defaultdict(list))
         printList = manager.list()
         
-        if options.processes > 1:
-            print("Parsing with {} processes....".format(options.processes))
+        if args.processes > 1:
+            print("Parsing with {} processes....".format(args.processes))
             jobs = []
             for i in range(processes):
-                p = Process(target=parse_references, args=(ecliManager, BWBManager, total, succes, fail, refs, options.minPrintError, regex))
+                p = Process(target=parse_references, args=(ecliManager, BWBManager, total, succes, fail, refs, args, regex))
                 jobs.append(p)
                 p.start()
                 print("{} Started".format(p.name))
@@ -258,37 +289,8 @@ if __name__ == '__main__':
                 time.sleep(1)
         else :
             print("Parsing with single process....")
-            parse_references(ecliManager, BWBManager, total, succes, fail, refs, options.minPrintError, regex)
+            parse_references(ecliManager, BWBManager, total, succes, fail, refs, args, regex)
 
-        if options.xmlOutput:
-            print("Creating XML output file....")
-            root = ET.Element('caselaws')
-            for x in refs.keys():
-                caseLawNode = ET.SubElement(root, "caselaw")
-                caseLawNode.set("ecli", x)
-                for item in refs[x]:
-                    referenceNode = ET.SubElement(caseLawNode, "reference")
-                    for key in item.keys():
-                        referenceValNode = ET.SubElement(referenceNode, key)
-                        # referenceValNode.set("varType", type(item.get(key)).__name__)
-                        if key[-4:].lower() != "list":
-                            referenceValNode.text = item.get(key).strip()
-                        else:
-                            for listItem in item.get(key):
-                                referenceListNode = ET.SubElement(referenceValNode, key[:-4]+'Item')
-                                referenceListNode.text = listItem
-                # print x
-                # print refs[x]
-           
-            print("Exporting XML output file....")
-            file = os.path.normpath('output.xml')
-            if options.prettyPrint:
-                rawXML = ET.tostring(root, 'utf-8')
-                domXML = parseString(rawXML)
-                with open(file, "w") as myfile:
-                    myfile.write(domXML.toprettyxml(indent="\t"))
-            else:
-                tree = ET.ElementTree(root)
-                tree.write(file)
+        
         
         print("{} out of {} ({:.2%}) were successful,\n{} out of {} ({:.2%}) came back without a match,\nin a total time of {:.2f} seconds".format(succes.value, total.value, (float(succes.value)/float(total.value)), fail.value, total.value, (float(fail.value)/float(total.value)),(time.time() - start_time)))
