@@ -157,10 +157,10 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                         for tuple in refs[e.text]:
                         
                             # Create an new node in the first namespace
-                            parentRefNode = ET.SubElement(root, unicode("ns1:references"))
+                            parentRefNode = ET.SubElement(root, unicode("dcterms:references"))
                             
                             # Give it a tag indicating we are pointing at a BWB
-                            parentRefNode.set(unicode("ns2:label"), unicode("Wetsverwijzing"))
+                            parentRefNode.set(unicode("rdfs:label"), unicode("Wetsverwijzing"))
                             
 # TODO!!                    # Add a tag with the a string of the found BWBs, should be an URI
                             parentRefNode.set(unicode("bwb:resourceIdentifier"), unicode(" ".join(tuple.get("RawBWB"))))
@@ -178,7 +178,9 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                             rawXML = ET.tostring(ecliFile.getroot(), encoding='utf8', method='xml')
                             
                             # Remove all the extra white spaces from the string and create a miniDOM object
-                            domXML = parseString(re.sub("\s*\n\s*", "", rawXML))
+                            cleanXML = re.sub("\s*\n\s*", "", rawXML)
+
+                            domXML = parseString(cleanXML)
                             
                             # Use toPrettyXML to properly format the file (and encode it in UTF-8 as it is the standard for XML)
                             outputXML = domXML.toprettyxml(indent="\t").decode('utf-8')
@@ -395,6 +397,13 @@ if __name__ == '__main__':
                       help="Creates X processes in order to speed up the parsing")
     args = parser.parse_args()
     
+    nameSpace = {'rdf':'http://www.w3.org/1999/02/22-rdf-syntax-ns#', 'ecli':'https://e-justice.europa.eu/ecli',
+    'eu':'http://publications.europa.eu/celex/', 'dcterms':'http://purl.org/dc/terms/',
+    'bwb':'bwb-dl', 'cvdr':'http://decentrale.regelgeving.overheid.nl/cvdr/', 'rdfs':'http://www.w3.org/2000/01/rdf-schema#',
+    'preserve':'http://www.rechtspraak.nl/schema/rechtspraak-1.0', 'psi':'http://psi.rechtspraak.nl/'}
+    
+    for prefix in nameSpace.keys():
+        ET.register_namespace(prefix, nameSpace[prefix])
     
     # Regex for references (PLEASE INDICATE THE LAW GROUP BELOW START COUNTING FROM 0)
     regex = ('((?:[Aa]rtikel|[Aa]rt\\.) ([0-9][0-9a-z:.]*),?'                #Matches Artikel and captures the number (and letter) combination for the article
