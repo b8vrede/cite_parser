@@ -61,6 +61,12 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
         # Fetch the file for the ecli popped before
         ecliFile = get_ecli_file(e.text)
         
+        # If the get_ecli_file function return None a time out has occurred
+        if ecliFile is None:    # Time out has occurred
+            
+            # Put the ECLI back into the todolist
+            eclis.append(e)
+            
         # Extract the document from the file and make it plaintext
         ecliDocument = get_plain_text(get_document(e.text, ecliFile))
         
@@ -181,65 +187,111 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                         ecliFile.write(file, encoding='utf8', method='xml') 
                 else:                   # The block was not found, occurs when the location of the block is wrong
                     print "No Meta data found (shouldn't happen ever!)"
-             
-            
-            if args.minPrintError is not None and errorScore >= args.minPrintError:
-                file = os.path.normpath('candidates/candidate_'+re.sub(":", "-", e.text)+'.txt')
-                ET.ElementTree(get_document(e.text)).write(file, encoding='UTF-8', method='text')
-                with open(file, "w") as myfile:
-                    myfile.write('REFERENCES\n')
-                    for ref in refList:
-                        myfile.write(str(ref)+'\n')
+    
+    # Print completion message
     print("Completed parsing references in {:.2f} seconds".format((time.time() - stage_start_time)))
     
 def find_references(document, regex):
+    
+    # Compile the regex
     ReferenceRegEx = re.compile(regex)
+    
+    # Return ALL matches to the regex
     return ReferenceRegEx.findall(document)
 
 def get_eclis(parameters={'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'100', 'return':'DOC'}):
-    stage_start_time = time.time()
-    print("Loading ECLI data...".format())
-    encoded_parameters = urllib.urlencode(parameters)
-    feed = urllib2.urlopen("http://data.rechtspraak.nl/uitspraken/zoeken?"+encoded_parameters)
-    nameSpace = {'xmlns':'http://www.w3.org/2005/Atom'}
-    eclis = ET.parse(feed).findall("./xmlns:entry/xmlns:id", namespaces=nameSpace)
-    print("Completed loading ECLI data in {:.2f} seconds".format((time.time() - stage_start_time)))
+    
+    # Start function timer
     stage_start_time = time.time()
     
+    # Print welcome message
+    print("Loading ECLI data...".format())
+    
+    # URL encode the parameters
+    encoded_parameters = urllib.urlencode(parameters)
+    
+    # Create an URL feed to the proper URL
+    feed = urllib2.urlopen("http://data.rechtspraak.nl/uitspraken/zoeken?"+encoded_parameters)
+    
+    # Define Namespace for the XML file
+    nameSpace = {'xmlns':'http://www.w3.org/2005/Atom'}
+    
+    # Find all Entries in the results XML
+    eclis = ET.parse(feed).findall("./xmlns:entry/xmlns:id", namespaces=nameSpace)
+    
+    # Print Completion message
+    print("Completed loading ECLI data in {:.2f} seconds".format((time.time() - stage_start_time)))
+
+    # Return the list of entry found above
     return eclis
 
 def get_ecli_file(ecli):
+    
+    # URL encode the parameters
     encoded_parameters = urllib.urlencode({'id':ecli})
+    
+    # Try to open the file for the ECLI
     try:
         feed = urllib2.urlopen("http://data.rechtspraak.nl/uitspraken/content?"+encoded_parameters, timeout = 3)
+    
+    # Catch Time out's
     except (urllib2.HTTPError, urllib2.URLError, socket.timeout) as err:
+        
+        # Print an error message
         print("{} timed out, retrying in 3 seconds!".format(ecli))
+        
+        # Sleep for 3 seconds to give the server time to restore
         time.sleep(3)
+        
+        # Pass the exception (proper error handling)
         pass
+        
+        # Return None to have the ECLI re-added to the todolist
         return None
-    else:
+    else:   # When no exception has occurred
+        
+        # Create an ElementTree from the feed
         element = ET.parse(feed)
+        
+        # Return the tree
         return element
         
 def get_document(ecli, element):
+
+    # Define the name space
     nameSpace = {'rdf':'http://www.w3.org/1999/02/22-rdf-syntax-ns#', 'ecli':'https://e-justice.europa.eu/ecli',
             'eu':'http://publications.europa.eu/celex/', 'dcterms':'http://purl.org/dc/terms/',
             'bwb':'bwb-dl', 'cvdr':'http://decentrale.regelgeving.overheid.nl/cvdr/', 'rdfs':'http://www.w3.org/2000/01/rdf-schema#',
             'preserve':'http://www.rechtspraak.nl/schema/rechtspraak-1.0'}
+    
+    # Return the element holding the document
     return element.find("./preserve:uitspraak", namespaces=nameSpace)
     
 def get_plain_text(xml, encoding='UTF-8'):
-    if xml is not None:
+    
+    # Check whether input is None
+    if xml is not None:         # Input is not None
+        
+        # Returns a plain text version of the Element given (also removes extra whitespaces)
         return ET.tostring(xml, encoding, method='text').strip()
-    else:
+    else:                       # Input is None
+        
+        # Return None (same as input)
         return None
 
 def get_bwb_info(file = 'BWBIdList.xml'):
+    
+    # Returns an ElementTree for the specified local file holding the information about BWB ID's
     return ET.parse(file)
     
 def get_bwb_name_dict(XML=get_bwb_info()):
+    
+    # Start function timer
     stage_start_time = time.time()
+    
+    # Print Welcome message
     print "Loading BWB data..."
+    
     # Create an list dictonary
     dict = defaultdict(list)
     
@@ -251,46 +303,68 @@ def get_bwb_name_dict(XML=get_bwb_info()):
     
     for regeling in regelingen:
         BWBId = get_plain_text(regeling.find("./bwb:BWBId", namespaces=nameSpace))
+        
         # Add BWBId to the dictonary
         dict[BWBId].append(BWBId)
         if BWBId is not None:
-            #Parse OfficieleTitel
+            
+            # Parse OfficieleTitel
             titelNode = regeling.find("./bwb:OfficieleTitel", namespaces=nameSpace)
+            
+            # Add OfficieleTitel to the dictonary if it exists
             if titelNode is not None:
-                # Add OfficieleTitel to the dictonary if it exists
-                    dict[get_plain_text(titelNode).lower()].append(BWBId)
+                dict[get_plain_text(titelNode).lower()].append(BWBId)
             
             #Parse CiteertitelLijst
             titelLijst = regeling.findall("./bwb:CiteertitelLijst/bwb:Citeertitel", namespaces=nameSpace)
+            
+            # If there are 1 or more Citeertitel's iterate through them
             if len(titelLijst) != 0:
-                # If there are 1 or more Citeertitel's iterate through them
                 for titel in titelLijst:
+                
                     # Select the titel node
                     titelNode = titel.find("./bwb:titel", namespaces=nameSpace)
+                    
+                    # Add Citeertitel to the dictionary if it exists
                     if titelNode is not None:
-                        # Add Citeertitel to the dictonary if it exists
-                        cleanedTitel = re.sub("[\d]", "", get_plain_text(titelNode).lower()).strip()
                         dict[get_plain_text(titelNode).lower()].append(BWBId)
+                        
+                        # Clean the citeertitel and also append it to the dictionary
+                        cleanedTitel = re.sub("[\d]", "", get_plain_text(titelNode).lower()).strip()
+                        dict[get_plain_text(cleanedTitel).lower()].append(BWBId)
+                        
                         
             #Parse NietOfficieleTitelLijst
             titelLijst = regeling.findall("./bwb:NietOfficieleTitelLijst/bwb:NietOfficieleTitel", namespaces=nameSpace)
+            
+            # If there are 1 or more NietOfficieleTitel's iterate through them
             if len(titelLijst) != 0:
-                # If there are 1 or more NietOfficieleTitel's iterate through them
                 for titel in titelLijst:
-                    if BWBId not in dict[get_plain_text(titel).lower()]:
-                        dict[get_plain_text(titel).lower()].append(BWBId)
+                    
+                    # Add NietOfficieleTitel to the dictionary
+                    dict[get_plain_text(titel).lower()].append(BWBId)
             
             #Parse AfkortingLijst
             titelLijst = regeling.findall("./bwb:AfkortingLijst/bwb:Afkorting", namespaces=nameSpace)
+            
+            # If there are 1 or more Afkorting's iterate through them
             if len(titelLijst) != 0:
-                # If there are 1 or more Afkorting's iterate through them
                 for titel in titelLijst:
                     dict[get_plain_text(titel).lower()].append(BWBId)
+                    
+    # Print completion message
     print("Completed loading BWB data in {:.2f} seconds".format((time.time() - stage_start_time)))
-    stage_start_time = time.time()
+    
+    # Return the created dictionary
     return dict
 
+# Main function
 if __name__ == '__main__':
+    
+    # Start global timer
+    start_time = time.time()
+    
+    # Parse the arguments
     parser = argparse.ArgumentParser(description='Downloads ECLIs and adds references to them')
     parser.add_argument("-x", "--xmlOutput", "--xml",
                       action="store_true", dest="xmlOutput", default=False,
@@ -298,15 +372,13 @@ if __name__ == '__main__':
     parser.add_argument("--pretty",
                       action="store_true", dest="prettyPrint", default=False,
                       help="Prints formatted XML (takes longer)")
-    parser.add_argument("-p", "--print",
-                      action="store", type=int, metavar="X", dest="minPrintError",
-                      help="Prints a text file for cases with more than X errors")
     parser.add_argument("-m", "--multi",
                       action="store", type=int, metavar="X", dest="processes", default="1",
                       help="Creates X processes in order to speed up the parsing")
     args = parser.parse_args()
     
-    start_time = time.time()
+    
+    # Regex for references (PLEASE INDICATE THE LAW GROUP BELOW START COUNTING FROM 0)
     regex = ('((?:[Aa]rtikel|[Aa]rt\\.) ([0-9][0-9a-z:.]*),?'                #Matches Artikel and captures the number (and letter) combination for the article
             '((?: (?:lid|aanhef en lid|aanhef en onder|onder)?(?:[0-9a-z ]|tot en met)+,?'  # matches "lid .. (tot en met ...)"
             '|,? (?:[a-z]| en )+ lid,?)*)'                                  # matches a word followed by "lid" e.g. "eerste lid"
@@ -315,57 +387,87 @@ if __name__ == '__main__':
             '(?:(?: van (?:de|het|)(?: wet)?|,?)? *'                        # matches e.g. "van de wet "
             '((?:(?:[A-Z0-9][a-zA-Z0-9]*|de|wet|bestuursrecht) *)+))? *'    # matches the Title
             '(?:\(([^\)]+?)\))?)')                                           # matches anything between () after the title
+    
+    # Indicates which match group in the regex holds the law title
     regexLawGroup = 5
     
+    # Parameters for ECLI selection
     parameters = {'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'1', 'return':'DOC', 'sort':'DESC'}
-
-    processes = args.processes
     
+    # Create the dictionary for the law (key: law, value: list of related BWB's)
     BWB_dict = get_bwb_name_dict()
 
+    # Fetch the list of ECLI's corresponding to the parameters
     eclis = get_eclis(parameters)
     
+    # If the list of ECLI's is not empty, prepare for parsing
     if len(eclis) > 0:
         
-        
+        # Creating shared variables for the counters
         succes = Value('i',0)
         total = Value('i',0)
         fail = Value('i',0)
         
+        # Create managers for the variables in used multi processing 
         manager = Manager()
         ecliManager = manager.list(eclis)
-
         BWBManager = manager.dict(BWB_dict)
         refs = manager.dict(defaultdict(list))
-        printList = manager.list()
         
-        if args.processes > 1:
+        # Check whether the user asked for more than one process
+        if args.processes > 1:      # More than one process (multi-processing)
+        
+            # Print multi process welcome messages
             print("Parsing with {} processes....".format(args.processes))
+            
+            # Create job list
             jobs = []
-            for i in range(processes):
+            
+            # Create the jobs
+            for i in range(args.processes):
+                
+                # Make a process calling the parse_references
                 p = Process(target=parse_references, args=(ecliManager, BWBManager, total, succes, fail, refs, args, regex, regexLawGroup))
+                
+                # Add the job to the list
                 jobs.append(p)
+                
+                # Start the process
                 p.start()
+                
+                # Print start message
                 print("{} Started".format(p.name))
             
+            # Holding loop, keeps the main process alive while the child processes are working
             while len(ecliManager) > 0:
+            
+                # Only print progress message when a ECLI is processed
                 if(len(ecliManager) != len(eclis)):
                     print("{} ECLI's remaining".format(len(ecliManager)))
+                
+                # Sleep for 2 seconds to prevent output spamming and unnecessary CPU usage 
                 time.sleep(2)
             
-            LivingAgents = processes
-            while LivingAgents != 0:
+            # When all ECLI are out of the todo list check whether all processes are done
+            while len(jobs) > 0:
+                
+                # Check all processes in the job list
                 for p in jobs:
-                    if p.is_alive():
+                
+                    if p.is_alive():        # If a process is still alive it is busy so leave it in the list
                         print("Waiting for {} to return...".format(p.name))
-                    else:
-                        LivingAgents -= 1
+                    else:                   # If a procces is not alive remove it from the list
                         jobs.remove(p)
+                        
+                # Sleep for 1 seconds to prevent output spamming and unnecessary CPU usage
                 time.sleep(1)
         else :
+            
+            # Print single process welcom message
             print("Parsing with single process....")
+            
+            # Call the parse_references function
             parse_references(ecliManager, BWBManager, total, succes, fail, refs, args, regex, regexLawGroup)
 
-        
-        
+        # Print completion message
         print("{} out of {} ({:.2%}) were successful,\n{} out of {} ({:.2%}) came back without a match,\nin a total time of {:.2f} seconds".format(succes.value, total.value, (float(succes.value)/float(total.value)), fail.value, total.value, (float(fail.value)/float(total.value)),(time.time() - start_time)))
