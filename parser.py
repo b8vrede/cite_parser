@@ -117,7 +117,9 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                     succes.value += 1
                     
                 # Create an tuple with the information that was found
-                tuple = {"ReferenceString":ref[0], "RawBWB":BWB}
+                # unicode(..., errors='replace') replaces any unknown char with a replacement character 
+                # (https://docs.python.org/2/howto/unicode.html#the-unicode-type)
+                tuple = {"ReferenceString":unicode(ref[0], errors='replace'), "RawBWB":BWB}
                 
                 # Check whether the ECLI is already a key in the global dictionary refs
                 if e.text in refs:          # ECLI is in dictionary
@@ -145,49 +147,58 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                 'preserve':'http://www.rechtspraak.nl/schema/rechtspraak-1.0'}
                 
                 # Find the RDF node in the XML with an about tag (this is always the second Description block of the RDF)
-                root = ecliFile.find("./rdf:RDF/rdf:Description[@rdf:about]", namespaces=nameSpace)
+                root = ecliFile.find("./rdf:RDF/rdf:Description", namespaces=nameSpace)
                 
                 # Check whether we could find the correct block to place the results
                 if root is not None:        # The block was found
                     
                     # For each reference we found in this document do:
-                    for tuple in refs[e.text]:
-                    
-                        # Create an new node in the first namespace
-                        parentRefNode = ET.SubElement(root, "ns1:references")
+                    if e.text in refs:
+                        for tuple in refs[e.text]:
                         
-                        # Give it a tag indicating we are pointing at a BWB
-                        parentRefNode.set("ns2:label", "Wetsverwijzing")
-                        
-# TODO!!                # Add a tag with the a string of the found BWBs, should be an URI
-                        parentRefNode.set("resourceIdentifier", " ".join(tuple.get("RawBWB")))
-                        
-                        # Set the text of the node to the text of the reference
-                        parentRefNode.text = tuple.get("ReferenceString")
-               
-                    # Create the proper file location using python os libary to make it OS independent
-                    file = os.path.normpath('ECLIs/'+re.sub(":", "-", e.text)+'.txt')
-                    
-                    # Check whether the XML needs to be nicely formatted
-                    if args.prettyPrint:    # XML needs to be nicely formatted
-
-                        # Turn the current document in a String
-                        rawXML = ET.tostring(ecliFile.getroot(), encoding='utf8', method='xml')
-                        
-                        # Remove all the extra white spaces from the string and create a miniDOM object
-                        domXML = parseString(re.sub("\s*\n\s*", "", rawXML))
-                        
-                        # Use toPrettyXML to properly format the file (and encode it in UTF-8 as it is the standard for XML)
-                        outputXML = domXML.toprettyxml(indent="\t").encode('utf8', 'replace')
-                        
-                        # Write the XML to the file
-                        with open(file, "w") as myfile:
-                            myfile.write(outputXML)
+                            # Create an new node in the first namespace
+                            parentRefNode = ET.SubElement(root, unicode("ns1:references"))
                             
-                    else:                   # XML doesn't need to be nicely formatted
+                            # Give it a tag indicating we are pointing at a BWB
+                            parentRefNode.set(unicode("ns2:label"), unicode("Wetsverwijzing"))
+                            
+# TODO!!                    # Add a tag with the a string of the found BWBs, should be an URI
+                            parentRefNode.set(unicode("bwb:resourceIdentifier"), unicode(" ".join(tuple.get("RawBWB"))))
+                            
+                            # Set the text of the node to the text of the reference
+                            parentRefNode.text = unicode(tuple.get("ReferenceString"))
+                   
+                        # Create the proper file location using python os libary to make it OS independent
+                        file = os.path.normpath('ECLIs/'+re.sub(":", "-", e.text)+'.txt')
                         
-                        # Write the XML to a file without any extra indents or newlines
-                        ecliFile.write(file, encoding='utf8', method='xml') 
+                        # Check whether the XML needs to be nicely formatted
+                        if args.prettyPrint:    # XML needs to be nicely formatted
+
+                            # Turn the current document in a String
+                            rawXML = ET.tostring(ecliFile.getroot(), encoding='utf8', method='xml')
+                            
+                            # Remove all the extra white spaces from the string and create a miniDOM object
+                            domXML = parseString(re.sub("\s*\n\s*", "", rawXML))
+                            
+                            # Use toPrettyXML to properly format the file (and encode it in UTF-8 as it is the standard for XML)
+                            outputXML = domXML.toprettyxml(indent="\t").decode('utf-8')
+                            
+                            # Write the XML to the file
+                            with open(file, "w") as myfile:
+                                myfile.write(outputXML)
+                                
+                        else:                   # XML doesn't need to be nicely formatted
+                            
+                            # Fetches root element of current tree
+                            root = ecliFile.getroot()
+                            
+                            # Write the XML to a file without any extra indents or newlines
+                            outputXML = ET.tostring(root, encoding='utf8', method='xml')
+                            
+                            # Write the XML to the file
+                            with open(file, "w") as myfile:
+                                myfile.write(outputXML)
+                            
                 else:                   # The block was not found, occurs when the location of the block is wrong
                     print "No Meta data found (shouldn't happen ever!)"
     
@@ -252,6 +263,7 @@ def get_ecli_file(ecli):
         # Return None to have the ECLI re-added to the todolist
         return None
     else:   # When no exception has occurred
+        
         
         # Create an ElementTree from the feed
         element = ET.parse(feed)
@@ -372,6 +384,9 @@ if __name__ == '__main__':
     parser.add_argument("-x", "--xmlOutput", "--xml",
                       action="store_true", dest="xmlOutput", default=False,
                       help="Outputs references in XML file")
+    parser.add_argument("-v", "--verbose",
+                      action="store_true", dest="verbose", default=False,
+                      help="When set more information is printed")
     parser.add_argument("--pretty",
                       action="store_true", dest="prettyPrint", default=False,
                       help="Prints formatted XML (takes longer)")
