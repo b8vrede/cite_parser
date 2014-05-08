@@ -67,6 +67,9 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
             # Put the ECLI back into the todolist
             eclis.append(e)
             
+            # And start the loop again
+            continue
+            
         # Extract the document from the file and make it plaintext
         ecliDocument = get_plain_text(get_document(e.text, ecliFile))
         
@@ -169,13 +172,13 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                     if args.prettyPrint:    # XML needs to be nicely formatted
 
                         # Turn the current document in a String
-                        rawXML = ET.tostring(ecliFile.getroot(), method='xml')
+                        rawXML = ET.tostring(ecliFile.getroot(), encoding='utf8', method='xml')
                         
                         # Remove all the extra white spaces from the string and create a miniDOM object
                         domXML = parseString(re.sub("\s*\n\s*", "", rawXML))
                         
                         # Use toPrettyXML to properly format the file (and encode it in UTF-8 as it is the standard for XML)
-                        outputXML = domXML.toprettyxml(indent="\t").encode('utf-8')
+                        outputXML = domXML.toprettyxml(indent="\t").encode('utf8', 'replace')
                         
                         # Write the XML to the file
                         with open(file, "w") as myfile:
@@ -331,7 +334,7 @@ def get_bwb_name_dict(XML=get_bwb_info()):
                         
                         # Clean the citeertitel and also append it to the dictionary
                         cleanedTitel = re.sub("[\d]", "", get_plain_text(titelNode).lower()).strip()
-                        dict[get_plain_text(cleanedTitel).lower()].append(BWBId)
+                        dict[cleanedTitel].append(BWBId)
                         
                         
             #Parse NietOfficieleTitelLijst
@@ -392,7 +395,7 @@ if __name__ == '__main__':
     regexLawGroup = 5
     
     # Parameters for ECLI selection
-    parameters = {'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'1', 'return':'DOC', 'sort':'DESC'}
+    parameters = {'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'1000', 'return':'DOC', 'sort':'DESC'}
     
     # Create the dictionary for the law (key: law, value: list of related BWB's)
     BWB_dict = get_bwb_name_dict()
