@@ -34,59 +34,63 @@ import re
 import urllib
 import urllib2
 import xml.etree.ElementTree as ET
+from xml.dom.minidom import parseString
 from collections import defaultdict
 from multiprocessing import Process, Manager, Value
 
 global stage_start_time, BWB_dict, eclis
 
-def parse_references(eclis, BWB_dict, total, succes, fail, failedRefs, minPrintError):    
+def parse_references(eclis, BWB_dict, total, succes, fail, refs, minPrintError, regex):    
     stage_start_time = time.time()
     print("Parsing references...".format())
-    LawRegEx = re.compile('(?:[Aa]rtikel|[Aa]rt\\.) [0-9][0-9a-z:.]*(?:,? (?:lid|aanhef en lid|aanhef en onder|onder)? [0-9a-z]+,?|,? [a-z]+ lid,?)?(?:,? onderdeel [a-z],?)?(?:,? sub [0-9],?)?(?:(?: van (?:de|het)(?: wet)?|,?)? ((?:[A-Z][a-zA-Z]* ?|op de ?|wet ?|bestuursrecht ?)+))?(?: *\\(.*?\\))?')
-    
+    ReferenceRegEx = re.compile(regex)
     while len(eclis) > 0:
-        printText = 0
+        errorScore = 0
         e = eclis.pop()
     # for e in eclis:
         Ecli = get_plain_text(get_document(e.text))
         if Ecli is not None:
-
-            refList = find_references(Ecli)
+            cleanLaw = None
+            refList = find_references(Ecli, regex)
             if refList is None:
                 eclis.append(e)
             for ref in refList:
                 total.value += 1
-                law = LawRegEx.match(ref).group(1)
+                law = ref[5]
                 # print LawRegEx.match(ref).group()
                 if law is not None:
-                    law = law.strip().lower()
-                    if law in BWB_dict:
-                        # print("{} --> {}".format(law, BWB_dict.get(law)))
-                        succes.value += 1 
+                    cleanLaw = law.strip().lower()
+                    if cleanLaw in BWB_dict:
+                        # print("{} --> {}".format(cleanLaw, BWB_dict.get(cleanLaw)))
+                        BWB = list(set(BWB_dict.get(cleanLaw)))
+                        succes.value += 1
                     else:
                         # print("{} --> No Match".format(law))
+                        BWB = ""
                         fail.value += 1
-                        printText += 1
-                        if law in failedRefs:
-                            failedRefs[law] += 1
-                        else:
-                            failedRefs[law] = 1
-                            
+                        errorScore += 1                        
+                elif cleanLaw is not None:
+                    succes.value += 1
+                # Add found element to references
+                tuple = {"ReferenceString":ref[0], "EClI":e.text, "BWBList":BWB}
+                if e.text in refs:
+                    result = refs[e.text]
+                    result.append(tuple)
                 else:
-                    printText += 1
-            if minPrintError is not None and printText > minPrintError:
+                    result = [tuple]
+                refs[e.text] = result
+                
+            if minPrintError is not None and errorScore >= minPrintError:
                 file = os.path.normpath('candidates/candidate_'+re.sub(":", "-", e.text)+'.txt')
                 ET.ElementTree(get_document(e.text)).write(file, encoding='UTF-8', method='text')
                 with open(file, "a") as myfile:
                     myfile.write('REFERENCES\n')
                     for ref in refList:
-                        myfile.write(ref+'\n')
+                        myfile.write(str(ref)+'\n')
     print("Completed parsing references in {:.2f} seconds".format((time.time() - stage_start_time)))
     
-def find_references(document):
-    references = {}
-    ReferenceRegEx = re.compile('((?:[Aa]rtikel|[Aa]rt\\.) [0-9][0-9a-z:.]*(?:,? (?:lid|aanhef en lid|aanhef en onder|onder)? [0-9a-z]+,?|,? [a-z]+ lid,?)?(?:,? onderdeel [a-z],?)?(?:,? sub [0-9],?)?(?:(?: van (?:de|het)(?: wet)?|,?)? (?:[A-Z][a-zA-Z]* ?|op de ?|wet ?|bestuursrecht ?)+)?(?: *\\(.*?\\))?)')
-    
+def find_references(document, regex):
+    ReferenceRegEx = re.compile(regex)
     return ReferenceRegEx.findall(document)
 
 def get_eclis(parameters={'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'100', 'return':'DOC'}):
@@ -148,7 +152,7 @@ def get_bwb_name_dict(XML=get_bwb_info()):
             titelNode = regeling.find("./bwb:OfficieleTitel", namespaces=nameSpace)
             if titelNode is not None:
                 # Add OfficieleTitel to the dictonary if it exists
-                dict[get_plain_text(titelNode).lower()].append(BWBId)
+                    dict[get_plain_text(titelNode).lower()].append(BWBId)
             
             #Parse CiteertitelLijst
             titelLijst = regeling.findall("./bwb:CiteertitelLijst/bwb:Citeertitel", namespaces=nameSpace)
@@ -160,7 +164,6 @@ def get_bwb_name_dict(XML=get_bwb_info()):
                     if titelNode is not None:
                         # Add Citeertitel to the dictonary if it exists
                         cleanedTitel = re.sub("[\d]", "", get_plain_text(titelNode).lower()).strip()
-                        dict[cleanedTitel].append(BWBId)
                         dict[get_plain_text(titelNode).lower()].append(BWBId)
                         
             #Parse NietOfficieleTitelLijst
@@ -168,7 +171,8 @@ def get_bwb_name_dict(XML=get_bwb_info()):
             if len(titelLijst) != 0:
                 # If there are 1 or more NietOfficieleTitel's iterate through them
                 for titel in titelLijst:
-                    dict[get_plain_text(titel).lower()].append(BWBId)
+                    if BWBId not in dict[get_plain_text(titel).lower()]:
+                        dict[get_plain_text(titel).lower()].append(BWBId)
             
             #Parse AfkortingLijst
             titelLijst = regeling.findall("./bwb:AfkortingLijst/bwb:Afkorting", namespaces=nameSpace)
@@ -183,16 +187,31 @@ def get_bwb_name_dict(XML=get_bwb_info()):
 if __name__ == '__main__':
     usage = "usage: %prog [options]"
     parser = optparse.OptionParser(usage=usage)
+    parser.add_option("-x", "--xmlOutput", "--xml",
+                      action="store_true", dest="xmlOutput", default=False,
+                      help="Outputs references in XML file")
+    parser.add_option("--pretty",
+                      action="store_true", dest="prettyPrint", default=False,
+                      help="Prints formatted XML (takes longer)")
     parser.add_option("-p", "--print",
                       action="store", type="int", metavar="X", dest="minPrintError",
                       help="Prints a text file for cases with more than X errors")
     parser.add_option("-m", "--multi",
-                      action="store", type="int", metavar="X", dest="processes", default="2",
+                      action="store", type="int", metavar="X", dest="processes", default="1",
                       help="Creates X processes in order to speed up the parsing")
     (options, args) = parser.parse_args()
     
     start_time = time.time()
-    parameters = {'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'200', 'return':'DOC', 'sort':'DESC'}
+    regex = ('((?:[Aa]rtikel|[Aa]rt\\.) ([0-9][0-9a-z:.]*),?'                #Matches Artikel and captures the number (and letter) combination for the article
+            '((?: (?:lid|aanhef en lid|aanhef en onder|onder)?(?:[0-9a-z ]|tot en met)+,?'  # matches "lid .. (tot en met ...)"
+            '|,? (?:[a-z]| en )+ lid,?)*)'                                  # matches a word followed by "lid" e.g. "eerste lid"
+            '(,? onderdeel [a-z],?)?'                                       # captures "onderdeel ..."
+            '(,? sub [0-9],?)?'                                             # captures "sub ..."
+            '(?:(?: van (?:de|het|)(?: wet)?|,?)? *'                        # matches e.g. "van de wet "
+            '((?:(?:[A-Z0-9][a-zA-Z0-9]*|de|wet|bestuursrecht) *)+))? *'    # matches the Title
+            '(?:\(([^\)]+?)\))?)')                                           # matches anything between () after the title
+    
+    parameters = {'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'100', 'return':'DOC', 'sort':'DESC'}
 
     processes = options.processes
     
@@ -201,7 +220,8 @@ if __name__ == '__main__':
     eclis = get_eclis(parameters)
     
     if len(eclis) > 0:
-        print("Preparing Workers....")
+        
+        
         succes = Value('i',0)
         total = Value('i',0)
         fail = Value('i',0)
@@ -210,29 +230,65 @@ if __name__ == '__main__':
         ecliManager = manager.list(eclis)
 
         BWBManager = manager.dict(BWB_dict)
-        failedRefs = manager.dict()
+        refs = manager.dict(defaultdict(list))
         printList = manager.list()
         
-        jobs = []
-        for i in range(processes):
-            p = Process(target=parse_references, args=(ecliManager, BWBManager, total, succes, fail, failedRefs, options.minPrintError))
-            jobs.append(p)
-            p.start()
-            print("{} Started".format(p.name))
-		
-        while len(ecliManager) > 0:
-            if(len(ecliManager) != len(eclis)):
-                print("{} ECLI's remaining".format(len(ecliManager)))
-            time.sleep(2)
-        
-        LivingAgents = processes
-        while LivingAgents != 0:
-            for p in jobs:
-                if p.is_alive():
-                    print("Waiting for {} to return...".format(p.name))
-                else:
-                    LivingAgents -= 1
-                    jobs.remove(p)
-            time.sleep(1)
+        if options.processes > 1:
+            print("Parsing with {} processes....".format(options.processes))
+            jobs = []
+            for i in range(processes):
+                p = Process(target=parse_references, args=(ecliManager, BWBManager, total, succes, fail, refs, options.minPrintError, regex))
+                jobs.append(p)
+                p.start()
+                print("{} Started".format(p.name))
             
-        print("{} out of {} ({:.2%}) were successful,\n{} out of {} ({:.2%}) came back without a match,\nin a total time of {:.2f} seconds".format(succes.value, total.value, (float(succes.value)/float(total.value)), fail.value, total.value, (float(fail.value)/float(total.value)),(time.time() - start_time), failedRefs))
+            while len(ecliManager) > 0:
+                if(len(ecliManager) != len(eclis)):
+                    print("{} ECLI's remaining".format(len(ecliManager)))
+                time.sleep(2)
+            
+            LivingAgents = processes
+            while LivingAgents != 0:
+                for p in jobs:
+                    if p.is_alive():
+                        print("Waiting for {} to return...".format(p.name))
+                    else:
+                        LivingAgents -= 1
+                        jobs.remove(p)
+                time.sleep(1)
+        else :
+            print("Parsing with single process....")
+            parse_references(ecliManager, BWBManager, total, succes, fail, refs, options.minPrintError, regex)
+
+        if options.xmlOutput:
+            print("Creating XML output file....")
+            root = ET.Element('caselaws')
+            for x in refs.keys():
+                caseLawNode = ET.SubElement(root, "caselaw")
+                caseLawNode.set("ecli", x)
+                for item in refs[x]:
+                    referenceNode = ET.SubElement(caseLawNode, "reference")
+                    for key in item.keys():
+                        referenceValNode = ET.SubElement(referenceNode, key)
+                        # referenceValNode.set("varType", type(item.get(key)).__name__)
+                        if key[-4:].lower() != "list":
+                            referenceValNode.text = item.get(key).strip()
+                        else:
+                            for listItem in item.get(key):
+                                referenceListNode = ET.SubElement(referenceValNode, key[:-4]+'Item')
+                                referenceListNode.text = listItem
+                # print x
+                # print refs[x]
+           
+            print("Exporting XML output file....")
+            file = os.path.normpath('output.xml')
+            if options.prettyPrint:
+                rawXML = ET.tostring(root, 'utf-8')
+                domXML = parseString(rawXML)
+                with open(file, "w") as myfile:
+                    myfile.write(domXML.toprettyxml(indent="\t"))
+            else:
+                tree = ET.ElementTree(root)
+                tree.write(file)
+        
+        print("{} out of {} ({:.2%}) were successful,\n{} out of {} ({:.2%}) came back without a match,\nin a total time of {:.2f} seconds".format(succes.value, total.value, (float(succes.value)/float(total.value)), fail.value, total.value, (float(fail.value)/float(total.value)),(time.time() - start_time)))
