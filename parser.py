@@ -40,75 +40,149 @@ from multiprocessing import Process, Manager, Value
 
 global stage_start_time, BWB_dict, eclis
 
-def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex):    
+def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, lawGroup):
+    # Start function timer
     stage_start_time = time.time()
+    
+    # Prints first sign of life (useful to check if all processes are working)
     print("Parsing references...".format())
+    
+    # Compile the supplied regex for finding references
     ReferenceRegEx = re.compile(regex)
+    
+    # Check whether there are any ECLIs in the shared todolist (eclis)
     while len(eclis) > 0:
+        # Init error counter
         errorScore = 0
+        
+        # Take and remove an ecli from the top of the shared todolist
         e = eclis.pop()
-    # for e in eclis:
+        
+        # Fetch the file for the ecli popped before
         ecliFile = get_ecli_file(e.text)
+        
+        # Extract the document from the file and make it plaintext
         ecliDocument = get_plain_text(get_document(e.text, ecliFile))
+        
+        # Check whether there is a document
         if ecliDocument is not None:
+            # Init the cleanLaw as None, cleanLaw is used to inherit the law from the previous reference
             cleanLaw = None
+            
+            # Fetch the list with matches of the regex in the plaintext document
             refList = find_references(ecliDocument, regex)
-            if refList is None:
-                eclis.append(e)
+
+            # Do things with the found references
             for ref in refList:
+                
+                # Add one to the total counter
                 total.value += 1
-                law = ref[5]
-                # print LawRegEx.match(ref).group()
-                if law is not None:
+                
+                # Fetch the match which indicates the law
+                law = ref[lawGroup]
+                
+                # Check whether there is a match in the law group
+                if law is not None:             # A law was found
+                    
+                    # Clean extra whitespace of the begin and the end of the law match and make it all lowercase
                     cleanLaw = law.strip().lower()
-                    if cleanLaw in BWB_dict:
-                        # print("{} --> {}".format(cleanLaw, BWB_dict.get(cleanLaw)))
+                    
+                    # Check whether the law is in our dictionary
+                    if cleanLaw in BWB_dict:        # Law is in the dictionary
+                        
+                        # Fetches all the BWBs associated with the law and remove duplicates
                         BWB = list(set(BWB_dict.get(cleanLaw)))
+                        
+                        # Increase the succes counter!
                         succes.value += 1
-                    else:
-                        # print("{} --> No Match".format(law))
+                    else:                           # Law is not in the dictionary
+                        
+                        # Set an empty BWB as there is a Law reference but we don't know what it is suppossed to be
                         BWB = ""
+                        
+                        # Increase the counters
                         fail.value += 1
                         errorScore += 1                        
-                elif cleanLaw is not None:
+                elif cleanLaw is not None:      # No law was found but we have a previous law we can use, so we will use the current values
+                    # Increase counter
                     succes.value += 1
-                # Add found element to references
+                    
+                # Create an tuple with the information that was found
                 tuple = {"ReferenceString":ref[0], "RawBWB":BWB}
-                if e.text in refs:
+                
+                # Check whether the ECLI is already a key in the global dictionary refs
+                if e.text in refs:          # ECLI is in dictionary
+                    
+                    # Fetch the current dictionary entry
                     result = refs[e.text]
+                    
+                    # Append the current result to the list
                     result.append(tuple)
-                else:
+                else:                      # ECLI is not in dictionary
+                    
+                    # Create a list with the result
                     result = [tuple]
+                
+                # Put the dictionary entry back (unknown keys are created)
                 refs[e.text] = result
             
-            if args.xmlOutput:
+            # When the XML output option is do this
+            if args.xmlOutput:          # XML output is ON
+                
+                # Define the namespace for the XML document, needed for selecting the right node to place the results in
                 nameSpace = {'rdf':'http://www.w3.org/1999/02/22-rdf-syntax-ns#', 'ecli':'https://e-justice.europa.eu/ecli',
                 'eu':'http://publications.europa.eu/celex/', 'dcterms':'http://purl.org/dc/terms/',
                 'bwb':'bwb-dl', 'cvdr':'http://decentrale.regelgeving.overheid.nl/cvdr/', 'rdfs':'http://www.w3.org/2000/01/rdf-schema#',
                 'preserve':'http://www.rechtspraak.nl/schema/rechtspraak-1.0'}
                 
+                # Find the RDF node in the XML with an about tag (this is always the second Description block of the RDF)
                 root = ecliFile.find("./rdf:RDF/rdf:Description[@rdf:about]", namespaces=nameSpace)
-                if root is not None:
+                
+                # Check whether we could find the correct block to place the results
+                if root is not None:        # The block was found
+                    
+                    # For each reference we found in this document do:
                     for tuple in refs[e.text]:
+                    
+                        # Create an new node in the first namespace
                         parentRefNode = ET.SubElement(root, "ns1:references")
+                        
+                        # Give it a tag indicating we are pointing at a BWB
                         parentRefNode.set("ns2:label", "Wetsverwijzing")
+                        
+# TODO!!                # Add a tag with the a string of the found BWBs, should be an URI
                         parentRefNode.set("resourceIdentifier", " ".join(tuple.get("RawBWB")))
+                        
+                        # Set the text of the node to the text of the reference
                         parentRefNode.text = tuple.get("ReferenceString")
                
-                    print("Exporting XML output file....")
+                    # Create the proper file location using python os libary to make it OS independent
                     file = os.path.normpath('ECLIs/'+re.sub(":", "-", e.text)+'.txt')
-                    if args.prettyPrint:
-                        # rawXML = ET.tostring(ecliFile, 'utf-8')
+                    
+                    # Check whether the XML needs to be nicely formatted
+                    if args.prettyPrint:    # XML needs to be nicely formatted
+
+                        # Turn the current document in a String
                         rawXML = ET.tostring(ecliFile.getroot(), method='xml')
+                        
+                        # Remove all the extra white spaces from the string and create a miniDOM object
                         domXML = parseString(re.sub("\s*\n\s*", "", rawXML))
+                        
+                        # Use toPrettyXML to properly format the file (and encode it in UTF-8 as it is the standard for XML)
                         outputXML = domXML.toprettyxml(indent="\t").encode('utf-8')
+                        
+                        # Write the XML to the file
                         with open(file, "w") as myfile:
                             myfile.write(outputXML)
-                    else:
-                        ecliFile.write(file, method='xml') # encoding='utf8', 
-                else:
-                    print "No Meta data found"
-                    
+                            
+                    else:                   # XML doesn't need to be nicely formatted
+                        
+                        # Write the XML to a file without any extra indents or newlines
+                        ecliFile.write(file, encoding='utf8', method='xml') 
+                else:                   # The block was not found, occurs when the location of the block is wrong
+                    print "No Meta data found (shouldn't happen ever!)"
+             
+            
             if args.minPrintError is not None and errorScore >= args.minPrintError:
                 file = os.path.normpath('candidates/candidate_'+re.sub(":", "-", e.text)+'.txt')
                 ET.ElementTree(get_document(e.text)).write(file, encoding='UTF-8', method='text')
@@ -241,6 +315,7 @@ if __name__ == '__main__':
             '(?:(?: van (?:de|het|)(?: wet)?|,?)? *'                        # matches e.g. "van de wet "
             '((?:(?:[A-Z0-9][a-zA-Z0-9]*|de|wet|bestuursrecht) *)+))? *'    # matches the Title
             '(?:\(([^\)]+?)\))?)')                                           # matches anything between () after the title
+    regexLawGroup = 5
     
     parameters = {'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'1', 'return':'DOC', 'sort':'DESC'}
 
@@ -268,7 +343,7 @@ if __name__ == '__main__':
             print("Parsing with {} processes....".format(args.processes))
             jobs = []
             for i in range(processes):
-                p = Process(target=parse_references, args=(ecliManager, BWBManager, total, succes, fail, refs, args, regex))
+                p = Process(target=parse_references, args=(ecliManager, BWBManager, total, succes, fail, refs, args, regex, regexLawGroup))
                 jobs.append(p)
                 p.start()
                 print("{} Started".format(p.name))
@@ -289,7 +364,7 @@ if __name__ == '__main__':
                 time.sleep(1)
         else :
             print("Parsing with single process....")
-            parse_references(ecliManager, BWBManager, total, succes, fail, refs, args, regex)
+            parse_references(ecliManager, BWBManager, total, succes, fail, refs, args, regex, regexLawGroup)
 
         
         
