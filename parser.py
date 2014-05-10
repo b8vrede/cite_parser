@@ -115,11 +115,16 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                 elif cleanLaw is not None:      # No law was found but we have a previous law we can use, so we will use the current values
                     # Increase counter
                     succes.value += 1
+                
+                if len(BWB) > 0:
+                    BWBmatch = BWB[0]
+                else:
+                    BWBmatch = None
                     
                 # Create an tuple with the information that was found
                 # unicode(..., errors='replace') replaces any unknown char with a replacement character 
                 # (https://docs.python.org/2/howto/unicode.html#the-unicode-type)
-                tuple = {"ReferenceString":unicode(ref[0], errors='replace'), "RawBWB":BWB}
+                tuple = {"ReferenceString":unicode(ref[0], errors='replace'), "RawBWB":BWB, "BWB":BWBmatch, "Article":ref[1]}
                 
                 # Check whether the ECLI is already a key in the global dictionary refs
                 if e.text in refs:          # ECLI is in dictionary
@@ -155,51 +160,59 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                     # For each reference we found in this document do:
                     if e.text in refs:
                         for tuple in refs[e.text]:
-                        
-                            # Create an new node in the first namespace
-                            parentRefNode = ET.SubElement(root, unicode("dcterms:references"))
-                            
-                            # Give it a tag indicating we are pointing at a BWB
-                            parentRefNode.set(unicode("rdfs:label"), unicode("Wetsverwijzing"))
-                            
-# TODO!!                    # Add a tag with the a string of the found BWBs, should be an URI
-                            parentRefNode.set(unicode("bwb:resourceIdentifier"), unicode(" ".join(tuple.get("RawBWB"))))
-                            
-                            # Set the text of the node to the text of the reference
-                            parentRefNode.text = unicode(tuple.get("ReferenceString"))
+                            if tuple.get("BWB") is not None:
+                                # Create an new node in the first namespace
+                                parentRefNode = ET.SubElement(root, unicode("dcterms:references"))
+                                
+                                # Give it a tag indicating we are pointing at a BWB
+                                parentRefNode.set(unicode("rdfs:label"), unicode("Wetsverwijzing"))
+                                
+# TODO!!                        # Add a tag with the a string of the found BWBs, should be an URI
+                                URI = "http://doc.metalex.eu:8080/page/id/"+tuple.get("BWB")
+                                
+                                if tuple.get("Article") is not None:
+                                    URI += "/artikel/"+tuple.get("Article")
+                                
+                                parentRefNode.set(unicode("bwb:resourceIdentifier"), unicode(URI))
+                                
+                                # Set the text of the node to the text of the reference
+                                parentRefNode.text = unicode(tuple.get("ReferenceString"))
                    
                         # Create the proper file location using python os libary to make it OS independent
                         file = os.path.normpath('ECLIs/'+re.sub(":", "-", e.text)+'.txt')
                         
                         # Check whether the XML needs to be nicely formatted
-                        if args.prettyPrint:    # XML needs to be nicely formatted
+                        # if args.prettyPrint:    # XML needs to be nicely formatted
 
-                            # Turn the current document in a String
-                            rawXML = ET.tostring(ecliFile.getroot(), encoding='utf8', method='xml')
+                            # # Turn the current document in a String
+                            # rawXML = ET.tostring(ecliFile.getroot(), encoding='utf8', method='xml')
                             
-                            # Remove all the extra white spaces from the string and create a miniDOM object
-                            cleanXML = re.sub("\s*\n\s*", "", rawXML)
-
-                            domXML = parseString(cleanXML)
+                            # # Remove all the extra white spaces from the string and create a miniDOM object
+                            # cleanXML = re.sub("\s*\n\s*", "", unicode(rawXML, errors='replace'))
                             
-                            # Use toPrettyXML to properly format the file (and encode it in UTF-8 as it is the standard for XML)
-                            outputXML = domXML.toprettyxml(indent="\t").decode('utf-8')
+                            # print cleanXML
+                            # print cleanXML[14438:14450]
                             
-                            # Write the XML to the file
-                            with open(file, "w") as myfile:
-                                myfile.write(outputXML)
+                            # domXML = parseString(cleanXML)
+                            
+                            # # Use toPrettyXML to properly format the file (and encode it in UTF-8 as it is the standard for XML)
+                            # outputXML = domXML.toprettyxml(indent="\t").decode('utf-8')
+                            
+                            # # Write the XML to the file
+                            # with open(file, "w") as myfile:
+                                # myfile.write(outputXML)
                                 
-                        else:                   # XML doesn't need to be nicely formatted
+                        # else:                   # XML doesn't need to be nicely formatted
                             
-                            # Fetches root element of current tree
-                            root = ecliFile.getroot()
-                            
-                            # Write the XML to a file without any extra indents or newlines
-                            outputXML = ET.tostring(root, encoding='utf8', method='xml')
-                            
-                            # Write the XML to the file
-                            with open(file, "w") as myfile:
-                                myfile.write(outputXML)
+                        # Fetches root element of current tree
+                        root = ecliFile.getroot()
+                        
+                        # Write the XML to a file without any extra indents or newlines
+                        outputXML = ET.tostring(root, encoding='utf8', method='xml')
+                        
+                        # Write the XML to the file
+                        with open(file, "w") as myfile:
+                            myfile.write(outputXML)
                             
                 else:                   # The block was not found, occurs when the location of the block is wrong
                     print "No Meta data found (shouldn't happen ever!)"
@@ -215,7 +228,7 @@ def find_references(document, regex):
     # Return ALL matches to the regex
     return ReferenceRegEx.findall(document)
 
-def get_eclis(parameters={'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'100', 'return':'DOC'}):
+def get_eclis(parameters={'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'10000', 'return':'DOC'}):
     
     # Start function timer
     stage_start_time = time.time()
@@ -389,9 +402,9 @@ if __name__ == '__main__':
     parser.add_argument("-v", "--verbose",
                       action="store_true", dest="verbose", default=False,
                       help="When set more information is printed")
-    parser.add_argument("--pretty",
-                      action="store_true", dest="prettyPrint", default=False,
-                      help="Prints formatted XML (takes longer)")
+    # parser.add_argument("--pretty",
+                      # action="store_true", dest="prettyPrint", default=False,
+                      # help="Prints formatted XML (takes longer)")
     parser.add_argument("-m", "--multi",
                       action="store", type=int, metavar="X", dest="processes", default="1",
                       help="Creates X processes in order to speed up the parsing")
@@ -400,7 +413,8 @@ if __name__ == '__main__':
     nameSpace = {'rdf':'http://www.w3.org/1999/02/22-rdf-syntax-ns#', 'ecli':'https://e-justice.europa.eu/ecli',
     'eu':'http://publications.europa.eu/celex/', 'dcterms':'http://purl.org/dc/terms/',
     'bwb':'bwb-dl', 'cvdr':'http://decentrale.regelgeving.overheid.nl/cvdr/', 'rdfs':'http://www.w3.org/2000/01/rdf-schema#',
-    'preserve':'http://www.rechtspraak.nl/schema/rechtspraak-1.0', 'psi':'http://psi.rechtspraak.nl/'}
+    'preserve':'http://www.rechtspraak.nl/schema/rechtspraak-1.0', 'psi':'http://psi.rechtspraak.nl/', 'xsd':'http://www.w3.org/2001/XMLSchema',
+    'xsi':'http://www.w3.org/2001/XMLSchema-instance'}
     
     for prefix in nameSpace.keys():
         ET.register_namespace(prefix, nameSpace[prefix])
@@ -419,7 +433,7 @@ if __name__ == '__main__':
     regexLawGroup = 5
     
     # Parameters for ECLI selection
-    parameters = {'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'1000', 'return':'DOC', 'sort':'DESC'}
+    parameters = {'subject':'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max':'14000', 'return':'DOC', 'sort':'DESC'}
     
     # Create the dictionary for the law (key: law, value: list of related BWB's)
     BWB_dict = get_bwb_name_dict()
