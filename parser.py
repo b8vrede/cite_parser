@@ -144,8 +144,8 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                 # Create an tuple with the information that was found
                 # unicode(..., errors='replace') replaces any unknown char with a replacement character
                 # (https://docs.python.org/2/howto/unicode.html#the-unicode-type)
-                tuple = {"ReferenceString": unicode(ref[0], errors='replace'), "RawBWB": BWB, "BWB": BWBmatch,
-                         "Article": ref[1]}
+                tuple = {"ReferenceSentence": unicode(ref[0], errors='replace'), "ReferenceString": unicode(ref[1], errors='replace'), "RawBWB": BWB, "BWB": BWBmatch,
+                         "Article": ref[2]}
 
                 # Check whether the ECLI is already a key in the global dictionary refs
                 if e.text in refs:  # ECLI is in dictionary
@@ -190,7 +190,7 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                                 # Give it a tag indicating we are pointing at a BWB
                                 parentRefNode.set(unicode("rdfs:label"), unicode("Wetsverwijzing"))
 
-                                # TODO!!                        # Add a tag with the a string of the found BWBs, should be an URI
+# TODO!!                        # Add a tag with the a string of the found BWBs, should be an URI
                                 URI = "http://doc.metalex.eu:8080/page/id/" + tuple.get("BWB")
 
                                 if tuple.get("Article") is not None:
@@ -447,6 +447,7 @@ if __name__ == '__main__':
 
     # Regex for references (PLEASE INDICATE THE LAW GROUP BELOW START COUNTING FROM 0)
     regex = (
+        '(?:\.\s)([A-Z].*?'  # Matches the entire sentence
         '((?:[Aa]rtikel|[Aa]rt\\.) ([0-9][0-9a-z:.]*),?'  # Matches Artikel and captures the number (and letter) combination for the article
         '((?: (?:lid|aanhef en lid|aanhef en onder|onder)?(?:[0-9a-z ]|tot en met)+,?'  # matches "lid .. (tot en met ...)"
         '|,? (?:[a-z]| en )+ lid,?)*)'  # matches a word followed by "lid" e.g. "eerste lid"
@@ -454,10 +455,11 @@ if __name__ == '__main__':
         '(,? sub [0-9],?)?'  # captures "sub ..."
         '(?:(?: van (?:de|het|)(?: wet)?|,?)? *'  # matches e.g. "van de wet "
         '((?:(?:[A-Z0-9][a-zA-Z0-9]*|de|wet|bestuursrecht) *)+))? *'  # matches the Title
-        '(?:\(([^\)]+?)\))?)')  # matches anything between () after the title
+        '(?:\(([^\)]+?)\))?)'  # matches anything between () after the title
+        '(?:\.|:))(?:\s[A-Z]|$)')
 
     # Indicates which match group in the regex holds the law title
-    regexLawGroup = 5
+    regexLawGroup = 6
 
     # Parameters for ECLI selection
     parameters = {'subject': 'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max': '500',
