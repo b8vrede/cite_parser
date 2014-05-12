@@ -86,7 +86,6 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
             # Fetch the list with matches of the regex in the plaintext document
             refList = find_references(ecliDocument, regex)
 
-            print "Found references. Start resolving."
             # Do things with the found references
             for ref in refList:
 
@@ -94,10 +93,10 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                 total.value += 1
 
                 # Fetch the match which indicates the law
-                law = ref[lawGroup]
-
+                law = ref[lawGroup].strip()
+                
                 # Check whether there is a match in the law group
-                if law is not None:  # A law was found
+                if law is not None and len(law) > 0:  # A law was found
 
                     # Clean extra whitespace of the begin and the end of the law match and make it all lowercase
                     cleanLaw = law.strip().lower()
@@ -146,12 +145,12 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                         BWBmatch = BWB[0]  # Take the first element (discard rest)
                 else:
                     if args.verbose:
-                        print "The following reference was found, but could not be resolved: " + ref[1]
+                        print("The following reference was found, but could not be resolved: \"{}\"\t{}\n\t{}".format(law, e.text, ref[0]))
                 # Create an tuple with the information that was found
                 # unicode(..., errors='replace') replaces any unknown char with a replacement character
                 # (https://docs.python.org/2/howto/unicode.html#the-unicode-type)
                 tuple = {"ReferenceSentence": unicode(ref[0], errors='replace'),
-                         "ReferenceString": unicode(ref[1], errors='replace'), "RawBWB": BWB, "BWB": BWBmatch,
+                         "ReferenceString": unicode(ref[0], errors='replace'), "RawBWB": BWB, "BWB": BWBmatch,
                          "Article": ref[2]}
 
                 # Check whether the ECLI is already a key in the global dictionary refs
@@ -457,12 +456,12 @@ if __name__ == '__main__':
     regex = (
         # '(?:\.\s+)([A-Z].*?'  # Matches the entire sentence
         '((?:[Aa]rtikel|[Aa]rt\\.) ([0-9][0-9a-z:.]*),?'  # Matches Artikel and captures the number (and letter) combination for the article
-        '((?: (?:lid|aanhef en lid|aanhef en onder|onder)?(?:[0-9a-z ]|tot en met)+,?'  # matches "lid .. (tot en met ...)"
-        '|,? (?:[a-z]| en )+ lid,?)*)'  # matches a word followed by "lid" e.g. "eerste lid"
+        '((?:\s+(?:lid|aanhef en lid|aanhef en onder|onder)?(?:[0-9a-z ]|tot en met)+,?'  # matches "lid .. (tot en met ...)"
+        '|,? (?:[a-z]| en )+ lid,?)?)'  # matches a word followed by "lid" e.g. "eerste lid"
         '(,? onderdeel [a-z],?)?'  # captures "onderdeel ..."
         '(,? sub [0-9],?)?'  # captures "sub ..."
         '(?:(?: van (?:de|het|)(?: wet)?|,?)? *'  # matches e.g. "van de wet "
-        '((?:(?:[A-Z0-9][a-zA-Z0-9]*|de|wet|bestuursrecht) *)+))? *'  # matches the Title
+        '((?:(?:wet|bestuursrecht|op het [A-Z0-9][a-zA-Z0-9]*|[A-Z0-9][a-zA-Z0-9]*);?\s+)+))? *'  # matches the Title
         '(?:\(([^\)]+?)\))?)'  # matches anything between () after the title
         # '.*?(?:\.|\:))(?:\s+[A-Z]|$)'
     )
