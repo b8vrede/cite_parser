@@ -50,7 +50,7 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
     print("Parsing references...".format())
 
     # Compile the supplied regex for finding references
-    ReferenceRegEx = re.compile(regex)
+    ReferenceRegEx = re.compile(regex, re.M)
 
     # Check whether there are any ECLIs in the shared todolist (eclis)
     while len(eclis) > 0:
@@ -246,10 +246,11 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
 
 def find_references(document, regex):
     # Compile the regex
-    ReferenceRegEx = re.compile(regex)
+    ReferenceRegEx = re.compile(regex, re.M)
 
     # Return ALL matches to the regex
-    return ReferenceRegEx.findall(document)
+    result = ReferenceRegEx.findall(document)
+    return result
 
 
 def get_eclis(parameters={'subject': 'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht',
@@ -447,7 +448,7 @@ if __name__ == '__main__':
 
     # Regex for references (PLEASE INDICATE THE LAW GROUP BELOW START COUNTING FROM 0)
     regex = (
-        '(?:\.\s)([A-Z].*?'  # Matches the entire sentence
+        # '(?:\.\s+)([A-Z].*?'  # Matches the entire sentence
         '((?:[Aa]rtikel|[Aa]rt\\.) ([0-9][0-9a-z:.]*),?'  # Matches Artikel and captures the number (and letter) combination for the article
         '((?: (?:lid|aanhef en lid|aanhef en onder|onder)?(?:[0-9a-z ]|tot en met)+,?'  # matches "lid .. (tot en met ...)"
         '|,? (?:[a-z]| en )+ lid,?)*)'  # matches a word followed by "lid" e.g. "eerste lid"
@@ -456,13 +457,14 @@ if __name__ == '__main__':
         '(?:(?: van (?:de|het|)(?: wet)?|,?)? *'  # matches e.g. "van de wet "
         '((?:(?:[A-Z0-9][a-zA-Z0-9]*|de|wet|bestuursrecht) *)+))? *'  # matches the Title
         '(?:\(([^\)]+?)\))?)'  # matches anything between () after the title
-        '(?:\.|:))(?:\s[A-Z]|$)')
+        # '.*?(?:\.|\:))(?:\s+[A-Z]|$)'
+        )
 
     # Indicates which match group in the regex holds the law title
-    regexLawGroup = 6
+    regexLawGroup = 5
 
     # Parameters for ECLI selection
-    parameters = {'subject': 'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max': '500',
+    parameters = {'subject': 'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max': '100',
                   'return': 'DOC', 'sort': 'DESC'}
 
     # Create the dictionary for the law (key: law, value: list of related BWB's)
