@@ -86,6 +86,7 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
             # Fetch the list with matches of the regex in the plaintext document
             refList = find_references(ecliDocument, regex)
 
+            print "Found references. Start resolving."
             # Do things with the found references
             for ref in refList:
 
@@ -123,11 +124,14 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
 
                 BWBmatch = None
                 if len(BWB) > 0:  # There is a BWB found
-                    if len(BWB) > 1 & len(
-                            certainBWBs) > 0:  # There are more BWB's found and certain BWB's have been found
+                    if len(BWB) > 1 \
+                            & len(certainBWBs) > 0:  # There are more BWB's found and certain BWB's have been found
                         highestFreqBWB = 0
                         for candidateBwb in BWB:  # Iterate trough possible BWB's from current ref
-                            if certainBWBs.count(candidateBwb) >= highestFreqBWB:
+                            if candidateBwb == certainBWBs[-1]:  # if the candidate matches the last found certain BWB
+                                BWBmatch = candidateBwb  # use that as match
+                                break
+                            elif certainBWBs.count(candidateBwb) >= highestFreqBWB:
                                 # set the match to the most common BWB in current document. If there are BWB's with
                                 # equal frequencies, it will choose the most recently found (hence the ">=")
                                 BWBmatch = candidateBwb
@@ -137,14 +141,17 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                                 # print BWBmatch
                                 # print "*^*^*^*^*^*^*^*^*^*^*^*^*^*^*^*^*^*^*^*^*^*^*"
 
-                    else:
-                        certainBWBs.append(BWB[0])
+                    else:  # There is no ambiguity
+                        certainBWBs.append(BWB[0])  # So it is a certain match
                         BWBmatch = BWB[0]  # Take the first element (discard rest)
-
+                else:
+                    if args.verbose:
+                        print "The following reference was found, but could not be resolved: " + ref[1]
                 # Create an tuple with the information that was found
                 # unicode(..., errors='replace') replaces any unknown char with a replacement character
                 # (https://docs.python.org/2/howto/unicode.html#the-unicode-type)
-                tuple = {"ReferenceSentence": unicode(ref[0], errors='replace'), "ReferenceString": unicode(ref[1], errors='replace'), "RawBWB": BWB, "BWB": BWBmatch,
+                tuple = {"ReferenceSentence": unicode(ref[0], errors='replace'),
+                         "ReferenceString": unicode(ref[1], errors='replace'), "RawBWB": BWB, "BWB": BWBmatch,
                          "Article": ref[2]}
 
                 # Check whether the ECLI is already a key in the global dictionary refs
@@ -447,22 +454,13 @@ if __name__ == '__main__':
 
     # Regex for references (PLEASE INDICATE THE LAW GROUP BELOW START COUNTING FROM 0)
     regex = (
-        '(?:\.\s)([A-Z].*?'  # Matches the entire sentence
-        '((?:[Aa]rtikel|[Aa]rt\\.) ([0-9][0-9a-z:.]*),?'  # Matches Artikel and captures the number (and letter) combination for the article
-        '((?: (?:lid|aanhef en lid|aanhef en onder|onder)?(?:[0-9a-z ]|tot en met)+,?'  # matches "lid .. (tot en met ...)"
-        '|,? (?:[a-z]| en )+ lid,?)*)'  # matches a word followed by "lid" e.g. "eerste lid"
-        '(,? onderdeel [a-z],?)?'  # captures "onderdeel ..."
-        '(,? sub [0-9],?)?'  # captures "sub ..."
-        '(?:(?: van (?:de|het|)(?: wet)?|,?)? *'  # matches e.g. "van de wet "
-        '((?:(?:[A-Z0-9][a-zA-Z0-9]*|de|wet|bestuursrecht) *)+))? *'  # matches the Title
-        '(?:\(([^\)]+?)\))?)'  # matches anything between () after the title
-        '(?:\.|:))(?:\s[A-Z]|$)')
+        '(?:\.\s)([A-Z].*((?:[Aa]rtikel|[Aa]rt\\.) ([0-9][0-9a-z:.]*),?((?: (?:lid|aanhef en lid|aanhef en onder|onder)?(?:[0-9a-z ]|tot en met)+,?|,? (?:[a-z]| en )+ lid,?)*)(,? onderdeel [a-z],?)?(,? sub [0-9],?)?(?:(?: van (?:de|het|)(?: wet)?|,?)? *((?:(?:[A-Z0-9][a-zA-Z0-9]*|de|wet|bestuursrecht) *)+))? *(?:\(([^\)]+?)\))?).*(?:\.|:))(?:\s[A-Z]|$)')
 
     # Indicates which match group in the regex holds the law title
     regexLawGroup = 6
 
     # Parameters for ECLI selection
-    parameters = {'subject': 'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max': '500',
+    parameters = {'subject': 'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max': '50',
                   'return': 'DOC', 'sort': 'DESC'}
 
     # Create the dictionary for the law (key: law, value: list of related BWB's)
