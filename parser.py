@@ -84,7 +84,7 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
             certainBWBs = []
 
             # Fetch the list with matches of the regex in the plaintext document
-            refList = find_references(ecliDocument, regex)
+            refList = find_references(ecliDocument, regex, ecliFile)
 
             # Do things with the found references
             for ref in refList:
@@ -94,7 +94,7 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
 
                 # Fetch the match which indicates the law
                 law = ref[lawGroup].strip()
-                
+
                 # Check whether there is a match in the law group
                 if law is not None and len(law) > 0:  # A law was found
 
@@ -120,7 +120,8 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                 elif cleanLaw is not None:  # No law was found but we have a previous law we can use, so we will use the current values
                     # Increase counter
                     succes.value += 1
-
+                else:
+                    BWB = ""
                 BWBmatch = None
                 if len(BWB) > 0:  # There is a BWB found
                     if len(BWB) > 1 \
@@ -250,17 +251,35 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
     print("Completed parsing references in {:.2f} seconds".format((time.time() - stage_start_time)))
 
 
-def find_references(document, regex):
+def find_references_with_para(uitspraakDocumentXML, reference_regex):
+    # Define the name space
+    nameSpace = {'rdf': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#', 'ecli': 'https://e-justice.europa.eu/ecli',
+                 'eu': 'http://publications.europa.eu/celex/', 'dcterms': 'http://purl.org/dc/terms/',
+                 'bwb': 'bwb-dl', 'cvdr': 'http://decentrale.regelgeving.overheid.nl/cvdr/',
+                 'rdfs': 'http://www.w3.org/2000/01/rdf-schema#',
+                 'preserve': 'http://www.rechtspraak.nl/schema/rechtspraak-1.0'}
+    ref_with_para = []
+    for para in uitspraakDocumentXML.find("./preserve:uitspraak", namespaces=nameSpace).iter():
+        if para.text is not None:
+            for found_ref in reference_regex.findall(para.text):
+                ref_with_para.append(found_ref + (get_plain_text(para),))
+    return ref_with_para
+
+
+def find_references(document, regex, uitspraakDocumentXML):
     # Compile the regex
-    ReferenceRegEx = re.compile(regex, re.M)
+    reference_regex = re.compile(regex, re.M)
+
+    if args.para:
+        return find_references_with_para(uitspraakDocumentXML, reference_regex)
 
     # Return ALL matches to the regex
-    result = ReferenceRegEx.findall(document)
+    result = reference_regex.findall(document)
     return result
 
 
 def get_eclis(parameters={'subject': 'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht',
-                          'max': '10000', 'return': 'DOC'}):
+                          'max': '100', 'return': 'DOC'}):
     # Start function timer
     stage_start_time = time.time()
 
@@ -439,6 +458,9 @@ if __name__ == '__main__':
     parser.add_argument("-m", "--multi",
                         action="store", type=int, metavar="X", dest="processes", default="1",
                         help="Creates X processes in order to speed up the parsing")
+    parser.add_argument("-p", "--para",
+                        action="store_true", dest="para", default=False,
+                        help="Adds original para-blocks to the output")
     args = parser.parse_args()
 
     nameSpace = {'rdf': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#', 'ecli': 'https://e-justice.europa.eu/ecli',
@@ -470,7 +492,7 @@ if __name__ == '__main__':
     regexLawGroup = 5
 
     # Parameters for ECLI selection
-    parameters = {'subject': 'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max': '50',
+    parameters = {'subject': 'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max': '10',
                   'return': 'DOC', 'sort': 'DESC'}
 
     # Create the dictionary for the law (key: law, value: list of related BWB's)
