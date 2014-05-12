@@ -152,7 +152,7 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                 # (https://docs.python.org/2/howto/unicode.html#the-unicode-type)
                 tuple = {"ReferenceSentence": unicode(ref[0], errors='replace'),
                          "ReferenceString": unicode(ref[0], errors='replace'), "RawBWB": BWB, "BWB": BWBmatch,
-                         "Article": ref[2]}
+                         "Article": ref[1]}
 
                 # Check whether the ECLI is already a key in the global dictionary refs
                 if e.text in refs:  # ECLI is in dictionary
