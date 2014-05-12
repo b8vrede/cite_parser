@@ -147,12 +147,19 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                 else:
                     if args.verbose:
                         print("The following reference was found, but could not be resolved: \"{}\"\t{}\n\t{}".format(law, e.text, ref[0]))
+                
                 # Create an tuple with the information that was found
                 # unicode(..., errors='replace') replaces any unknown char with a replacement character
                 # (https://docs.python.org/2/howto/unicode.html#the-unicode-type)
-                tuple = {"ReferenceSentence": unicode(ref[0], errors='replace'),
-                         "ReferenceString": unicode(ref[0], errors='replace'), "RawBWB": BWB, "BWB": BWBmatch,
-                         "Article": ref[1]}
+
+                if args.para:
+                    tuple = {"ReferenceSentence": ref[7],
+                             "ReferenceString": ref[0], "RawBWB": BWB, "BWB": BWBmatch,
+                            "Article": ref[1]}
+                else :
+                    tuple = {"ReferenceSentence": unicode(ref[0], errors='replace'),
+                             "ReferenceString": unicode(ref[0], errors='replace'), "RawBWB": BWB, "BWB": BWBmatch,
+                            "Article": ref[1]}
 
                 # Check whether the ECLI is already a key in the global dictionary refs
                 if e.text in refs:  # ECLI is in dictionary
@@ -206,7 +213,13 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                                 parentRefNode.set(unicode("bwb:resourceIdentifier"), unicode(URI))
 
                                 # Set the text of the node to the text of the reference
-                                parentRefNode.text = unicode(tuple.get("ReferenceString"))
+                                refStringNode = ET.SubElement(parentRefNode, unicode("dcterms:string"))
+                                refStringNode.text = tuple.get("ReferenceString")
+                                
+                                if args.para:
+                                    refSentenceNode = ET.SubElement(parentRefNode, unicode("dcterms:sentence"))
+                                    refSentenceNode.text = unicode(tuple.get("ReferenceSentence"), errors='replace')
+                                    
 
                         # Create the proper file location using python os libary to make it OS independent
                         file = os.path.normpath('ECLIs/' + re.sub(":", "-", e.text) + '.txt')
