@@ -210,7 +210,7 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                                 if tuple.get("Article") is not None:
                                     URI += "/artikel/" + tuple.get("Article")
 
-                                parentRefNode.set(unicode("bwb:resourceIdentifier"), unicode(URI))
+                                parentRefNode.set(unicode("resourceIdentifier"), unicode(URI))
 
                                 # Set the text of the node to the text of the reference
                                 refStringNode = ET.SubElement(parentRefNode, unicode("dcterms:string"))
@@ -218,11 +218,11 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                                 
                                 if args.para:
                                     refSentenceNode = ET.SubElement(parentRefNode, unicode("dcterms:sentence"))
-                                    refSentenceNode.text = unicode(tuple.get("ReferenceSentence"), errors='replace')
+                                    refSentenceNode.text = unicode(tuple.get("ReferenceSentence"), errors='ignore')
                                     
 
                         # Create the proper file location using python os libary to make it OS independent
-                        file = os.path.normpath('ECLIs/' + re.sub(":", "-", e.text) + '.txt')
+                        file = os.path.normpath('ECLIs/' + re.sub(":", "-", e.text) + '.xml')
 
                         # Check whether the XML needs to be nicely formatted
                         # if args.prettyPrint:    # XML needs to be nicely formatted
