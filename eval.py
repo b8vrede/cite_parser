@@ -59,11 +59,19 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Tool for evaluation')
     parser.add_argument("-r", "--random",
                         action="store", type=int, metavar="X", dest="random", default=None,
-                        help="Creates a random sample of size X from the list of selected ECLIs")                    
+                        help="Creates a random sample of size X from all avaible references")    
+    parser.add_argument("-s", "--seed",
+                        action="store", type=int, metavar="X", dest="seed", default=None,
+                        help="Sets the seed of the random generator to X")                              
     args = parser.parse_args()
     
+    if args.seed is not None:
+        random.seed(args.seed)
+        
     fileList = read_ecli_files()
     
+    
+        
     if args.random > 0:
         refs = fetch_random_refs(fileList, args.random)
         print("+---------------------------------------------------+\n|\tFile:\t- (Random from {} file(s))".format(len(fileList)))

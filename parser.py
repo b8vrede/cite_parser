@@ -481,7 +481,13 @@ if __name__ == '__main__':
     parser.add_argument("-p", "--para",
                         action="store_true", dest="para", default=False,
                         help="Adds original para-blocks to the output")
+    parser.add_argument("-s", "--seed",
+                        action="store", type=int, metavar="X", dest="seed", default=None,
+                        help="Sets the seed of the random generator to X")                              
     args = parser.parse_args()
+    
+    if args.seed is not None:
+        random.seed(args.seed)
 
     nameSpace = {'rdf': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#', 'ecli': 'https://e-justice.europa.eu/ecli',
                  'eu': 'http://publications.europa.eu/celex/', 'dcterms': 'http://purl.org/dc/terms/',
