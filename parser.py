@@ -499,7 +499,7 @@ if __name__ == '__main__':
         # '(?:\.\s+)([A-Z].*?'  # Matches the entire sentence
         '((?:[Aa]rtikel|[Aa]rt\\.) ([0-9][0-9a-z:.]*),?'  # Matches Artikel and captures the number (and letter) combination for the article
         '((?:\s+(?:lid|aanhef en lid|aanhef en onder|onder)?(?:[0-9a-z ]|tot en met)+,?'  # matches "lid .. (tot en met ...)"
-        '|,? (?:[a-z]| en )+ lid,?)?)'  # matches a word followed by "lid" e.g. "eerste lid"
+        '|,? (?:[a-z]| en )+ lid,?)*)'  # matches a word followed by "lid" e.g. "eerste lid"
         '(,? onderdeel [a-z],?)?'  # captures "onderdeel ..."
         '(,? sub [0-9],?)?'  # captures "sub ..."
         '(?:(?: van (?:de|het|)(?: wet)?|,?)? *'  # matches e.g. "van de wet "
