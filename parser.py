@@ -37,7 +37,7 @@ import urllib2
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from multiprocessing import Process, Manager, Value
-
+import random
 
 global stage_start_time, BWB_dict, eclis
 
@@ -310,7 +310,11 @@ def get_eclis(parameters={'subject': 'http://psi.rechtspraak.nl/rechtsgebied#bes
 
     # Find all Entries in the results XML
     eclis = ET.parse(feed).findall("./xmlns:entry/xmlns:id", namespaces=nameSpace)
-
+    
+    if args.random is not None and eclis is not None and args.random > 0 and args.random < len(eclis):
+        print("Picking {} random ECLI entries from list....".format(args.random))
+        eclis = random.sample(eclis, args.random)
+        
     # Print Completion message
     print("Completed loading ECLI data in {:.2f} seconds".format((time.time() - stage_start_time)))
 
@@ -471,6 +475,9 @@ if __name__ == '__main__':
     parser.add_argument("-m", "--multi",
                         action="store", type=int, metavar="X", dest="processes", default="1",
                         help="Creates X processes in order to speed up the parsing")
+    parser.add_argument("-r", "--random",
+                        action="store", type=int, metavar="X", dest="random", default=None,
+                        help="Creates a random sample of size X from the list of selected ECLIs")                    
     parser.add_argument("-p", "--para",
                         action="store_true", dest="para", default=False,
                         help="Adds original para-blocks to the output")
@@ -505,7 +512,7 @@ if __name__ == '__main__':
     regexLawGroup = 5
 
     # Parameters for ECLI selection
-    parameters = {'subject': 'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max': '10',
+    parameters = {'subject': 'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max': '15000',
                   'return': 'DOC', 'sort': 'DESC'}
 
     # Create the dictionary for the law (key: law, value: list of related BWB's)
