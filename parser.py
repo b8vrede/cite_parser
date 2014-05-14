@@ -197,30 +197,34 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                     # For each reference we found in this document do:
                     if e.text in refs:
                         for tuple in refs[e.text]:
+                           # Create an new node in the first namespace
+                            parentRefNode = ET.SubElement(root, unicode("dcterms:references"))
+
+                            # Give it a tag indicating we are pointing at a BWB
+                            parentRefNode.set(unicode("rdfs:label"), unicode("Wetsverwijzing"))
+
+                            # Add a tag with the a string of the found BWBs, should be an URI
+                            
                             if tuple.get("BWB") is not None:
-                                # Create an new node in the first namespace
-                                parentRefNode = ET.SubElement(root, unicode("dcterms:references"))
-
-                                # Give it a tag indicating we are pointing at a BWB
-                                parentRefNode.set(unicode("rdfs:label"), unicode("Wetsverwijzing"))
-
-                                # TODO!!                        # Add a tag with the a string of the found BWBs, should be an URI
                                 URI = "http://doc.metalex.eu:8080/page/id/" + tuple.get("BWB")
-
                                 if tuple.get("Article") is not None:
                                     URI += "/artikel/" + tuple.get("Article")
-
-                                parentRefNode.set(unicode("resourceIdentifier"), unicode(URI))
-
-                                # Set the text of the node to the text of the reference
-                                refStringNode = ET.SubElement(parentRefNode, unicode("dcterms:string"))
-                                refStringNode.text = tuple.get("ReferenceString")
+                            elif args.all:
+                                URI = "No BWB found"
                                 
-                                if args.para:
-                                    refSentenceNode = ET.SubElement(parentRefNode, unicode("dcterms:sentence"))
-                                    refSentenceNode.text = unicode(tuple.get("ReferenceSentence"), errors='ignore')
-                                    
+                            
 
+                            parentRefNode.set(unicode("resourceIdentifier"), unicode(URI))
+
+                            # Set the text of the node to the text of the reference
+                            refStringNode = ET.SubElement(parentRefNode, unicode("dcterms:string"))
+                            refStringNode.text = tuple.get("ReferenceString")
+                            
+                            if args.para:
+                                refSentenceNode = ET.SubElement(parentRefNode, unicode("dcterms:sentence"))
+                                refSentenceNode.text = unicode(tuple.get("ReferenceSentence"), errors='ignore')
+
+                                
                         # Create the proper file location using python os libary to make it OS independent
                         file = os.path.normpath('ECLIs/' + re.sub(":", "-", e.text) + '.xml')
 
@@ -483,7 +487,10 @@ if __name__ == '__main__':
                         help="Adds original para-blocks to the output")
     parser.add_argument("-s", "--seed",
                         action="store", type=int, metavar="X", dest="seed", default=None,
-                        help="Sets the seed of the random generator to X")                              
+                        help="Sets the seed of the random generator to X")
+    parser.add_argument("-a", "--all",
+                        action="store_true", dest="all", default=False,
+                        help="Exports all references even those that couldn't be resolved")                          
     args = parser.parse_args()
     
     if args.seed is not None:
