@@ -84,7 +84,7 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
             certainBWBs = []
 
             # Fetch the list with matches of the regex in the plaintext document
-            refList = find_references(ecliDocument, regex, ecliFile)
+            refList = find_references(ecliDocument, regex, ecliFile, args)
 
             # Do things with the found references
             for ref in refList:
@@ -94,7 +94,12 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
 
                 # Fetch the match which indicates the law
                 law = ref[lawGroup].strip()
-
+                
+                # Checks whether the law matches the blacklist
+                BlackList = ["deze wet", "nederland", "onze minister", "wet", "die wet", "het verdrag"]
+                if law.lower() in BlackList:
+                    law = None
+                    
                 # Check whether there is a match in the law group
                 if law is not None and len(law) > 0:  # A law was found
 
@@ -283,7 +288,7 @@ def find_references_with_para(uitspraakDocumentXML, reference_regex):
     return ref_with_para
 
 
-def find_references(document, regex, uitspraakDocumentXML):
+def find_references(document, regex, uitspraakDocumentXML, args):
     # Compile the regex
     reference_regex = re.compile(regex, re.M)
 
@@ -513,19 +518,19 @@ if __name__ == '__main__':
     # Regex for references (PLEASE INDICATE THE LAW GROUP BELOW START COUNTING FROM 0)
     regex = (
         # '(?:\.\s+)([A-Z].*?'  # Matches the entire sentence
-        '((?:[Aa]rtikel|[Aa]rt\\.?) ([0-9][0-9a-z:.]*),?'  # Matches Artikel and captures the number (and letter) combination for the article
+        '([^a-zA-Z](?:(?:[Aa]rtikel|[Aa]rt\\.?) ([0-9][0-9a-z:.]*)|[Bb]oek ([0-9][0-9a-z:.]*)|[Hh]oofdstuk ([0-9][0-9a-z:.]*)),?'  # Matches Artikel and captures the number (and letter) combination for the article
         '((?:\s+(?:lid|aanhef en lid|aanhef en onder|onder)?(?:[0-9a-z ]|tot en met)+,?'  # matches "lid .. (tot en met ...)"
         '|,? (?:[a-z]| en )+ lid,?)*)'  # matches a word followed by "lid" e.g. "eerste lid"
         '(,? onderdeel [a-z],?)?'  # captures "onderdeel ..."
         '(,? sub [0-9],?)?'  # captures "sub ..."
         '(?:(?: van (?:de|het|)(?: wet)?|,?)? *'  # matches e.g. "van de wet "
-        '((?:(?:wet|bestuursrecht|op het [A-Z0-9][a-zA-Z0-9]*|[A-Z0-9][a-zA-Z0-9]*);?\s+)+))? *'  # matches the Title
+        '((?:(?:wet|bestuursrecht|Wetboek van|op het [A-Z0-9][a-zA-Z0-9]*|[A-Z0-9][a-zA-Z0-9]*);?(?:[^\S\n]*|\\.))+))? *'  # matches the Title
         '(?:\(([^\)]+?)\))?)'  # matches anything between () after the title
         # '.*?(?:\.|\:))(?:\s+[A-Z]|$)'
     )
 
     # Indicates which match group in the regex holds the law title
-    regexLawGroup = 5
+    regexLawGroup = 7
 
     # Parameters for ECLI selection
     parameters = {'subject': 'http://psi.rechtspraak.nl/rechtsgebied#bestuursrecht_vreemdelingenrecht', 'max': '15000',
@@ -613,8 +618,11 @@ if __name__ == '__main__':
             parse_references(ecliManager, BWBManager, total, succes, fail, refs, args, regex, regexLawGroup)
 
         # Print completion message
-        print(
-            "{} out of {} ({:.2%}) were successful,\n{} out of {} ({:.2%}) came back without a match,\nin a total time "
-            "of {:.2f} seconds".format(
-                succes.value, total.value, (float(succes.value) / float(total.value)), fail.value, total.value,
-                (float(fail.value) / float(total.value)), (time.time() - start_time)))
+        if total.value > 0:
+            print(
+                "{} out of {} ({:.2%}) were successful,\n{} out of {} ({:.2%}) came back without a match,\nin a total time "
+                "of {:.2f} seconds".format(
+                    succes.value, total.value, (float(succes.value) / float(total.value)), fail.value, total.value,
+                    (float(fail.value) / float(total.value)), (time.time() - start_time)))
+        else:
+            print "Total is 0!"
