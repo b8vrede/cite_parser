@@ -519,7 +519,7 @@ if __name__ == '__main__':
     # Regex for references (PLEASE INDICATE THE LAW GROUP BELOW START COUNTING FROM 0)
     regex = (
         # '(?:\.\s+)([A-Z].*?'  # Matches the entire sentence
-        '([^a-zA-Z](?:(?:[Aa]rtikel|[Aa]rt\\.?) ([0-9][0-9a-z:.]*)|[Bb]oek ([0-9][0-9a-z:.]*)|[Hh]oofdstuk ([0-9][0-9a-z:.]*)),?'  # Matches Artikel and captures the number (and letter) combination for the article
+        '([^a-zA-Z](?:(?:[Aa]rtikel|[Aa]rt\\.?) ([0-9][0-9a-zA-Z:.]*)|[Bb]oek ([0-9][0-9a-zA-Z:.]*)|[Hh]oofdstuk ([0-9][0-9a-zA-Z:.]*)),?'  # Matches Artikel and captures the number (and letter) combination for the article
         '((?:\s+(?:lid|aanhef en lid|aanhef en onder|onder)?(?:[0-9a-z ]|tot en met)+,?'  # matches "lid .. (tot en met ...)"
         '|,? (?:[a-z]+ lid|[a-z]+ en [a-z]+ lid),?)*)'  # matches a word followed by "lid" e.g. "eerste lid"
         '(,? onderdeel [a-z],?)?'  # captures "onderdeel ..."
