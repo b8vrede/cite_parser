@@ -490,7 +490,10 @@ if __name__ == '__main__':
                         help="Sets the seed of the random generator to X")
     parser.add_argument("-a", "--all",
                         action="store_true", dest="all", default=False,
-                        help="Exports all references even those that couldn't be resolved")                          
+                        help="Exports all references even those that couldn't be resolved")  
+    parser.add_argument("--ecli",
+                        action="store", dest="ecli", metavar="E", default=None,
+                        help="Parse a specific ECLI")                          
     args = parser.parse_args()
     
     if args.seed is not None:
@@ -510,7 +513,7 @@ if __name__ == '__main__':
     # Regex for references (PLEASE INDICATE THE LAW GROUP BELOW START COUNTING FROM 0)
     regex = (
         # '(?:\.\s+)([A-Z].*?'  # Matches the entire sentence
-        '((?:[Aa]rtikel|[Aa]rt\\.) ([0-9][0-9a-z:.]*),?'  # Matches Artikel and captures the number (and letter) combination for the article
+        '((?:[Aa]rtikel|[Aa]rt\\.?) ([0-9][0-9a-z:.]*),?'  # Matches Artikel and captures the number (and letter) combination for the article
         '((?:\s+(?:lid|aanhef en lid|aanhef en onder|onder)?(?:[0-9a-z ]|tot en met)+,?'  # matches "lid .. (tot en met ...)"
         '|,? (?:[a-z]| en )+ lid,?)*)'  # matches a word followed by "lid" e.g. "eerste lid"
         '(,? onderdeel [a-z],?)?'  # captures "onderdeel ..."
@@ -532,7 +535,13 @@ if __name__ == '__main__':
     BWB_dict = get_bwb_name_dict()
 
     # Fetch the list of ECLI's corresponding to the parameters
-    eclis = get_eclis(parameters)
+    if args.ecli is not None:
+        ecliFake = ET.Element('fakeNode')
+        ecliFake.text = args.ecli
+        eclis = [ecliFake]
+    else:
+        eclis = get_eclis(parameters)
+ 
 
     # If the list of ECLI's is not empty, prepare for parsing
     if len(eclis) > 0:
