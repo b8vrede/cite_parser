@@ -32,28 +32,42 @@ def fetch_random_refs(fileList, n):
     return allRefs
     
 def eval_refs(refs):
-    global positive, negative
-    
+    global truepositive, falsepositive, truenegative, falsenegative
+    counter = 0
     for ref in refs:
-        url = ref.get("resourceIdentifier", "No URL!")
+        counter += 1
+        
+        url = ref.get("resourceIdentifier", "No URL atribute (shouldn't be possible!)")
         string = ref.findtext("{http://purl.org/dc/terms/}string", "No ref string!")
         para = ref.findtext("{http://purl.org/dc/terms/}sentence", "No para block!")
-        print("+---------------------------------------------------+\n\nURL:\t{}\nRef:\t{}\n\nContext:\t{}\n".format(url, string, para))
+    
+        print("\n+---------------------------------------------------+\n\nProgress:\t{:.2%}\nURL:\t{}\nRef:\t{}\n\nContext:\t{}\n".format((float(counter)/len(refs)), url, string, para))
         
+        if url == "No BWB found":
+            print("The answer is Yes when it is correct that we didn't resolve this reference!")
         answer = raw_input('Is this classification correct: [Y/N] ')
         
         while answer not in ['y', 'Y', 'n', 'N']:
             print("Invalid input!")
             answer = raw_input('Is this classification correct: [Y/N] ')
         
-        if answer.lower() == "y":
-            positive += 1
-        elif answer.lower() == "n":
-            negative += 1
+        if url == "No BWB found":
+            if answer.lower() == "y":
+                truenegative += 1
+            elif answer.lower() == "n":
+                falsenegative += 1
+
+        else:
+            if answer.lower() == "y":
+                truepositive += 1
+            elif answer.lower() == "n":
+                falsepositive += 1
 # Main function
 if __name__ == '__main__':
-    positive = 0
-    negative = 0
+    truepositive = 0
+    falsepositive = 0
+    truenegative = 0
+    falsenegative = 0
     
     # Parse the arguments
     parser = argparse.ArgumentParser(description='Tool for evaluation')
@@ -77,8 +91,6 @@ if __name__ == '__main__':
         print("+---------------------------------------------------+\n|\tFile:\t- (Random from {} file(s))".format(len(fileList)))
         print("|\tRefs: \t{}".format(len(refs)))
         eval_refs(refs)
-        total = positive + negative
-        print "P: {} ({:.2%}) \nN: {} ({:.2%})".format(positive, float(positive)/total, negative, float(negative)/total)
     else:
         for file in fileList:
             print("+---------------------------------------------------+\n|\tFile:\t{}".format(file))
@@ -87,7 +99,17 @@ if __name__ == '__main__':
             print("|\tRefs: \t{}".format(len(refs)))
 
             eval_refs(refs)
+    
+    if (truepositive+falsepositive) == 0:
+        precision = 0
+    else:
+        precision = float(truepositive)/float(truepositive+falsepositive)
+        
+    if (truepositive+falsenegative) == 0:    
+        recall = 0
+    else:
+        recall = float(truepositive)/float(truepositive+falsenegative)
 
-            total = positive + negative
-
-            print "P: {} ({:.2%}) \nN: {} ({:.2%})".format(positive, float(positive)/total, negative, float(negative)/total)
+     
+    print "RESULTS:\nTP: {}\t|FP: {}\n-------------------\nFN: {}\t| TN: {}".format(truepositive, falsepositive, falsenegative, truenegative)
+    print "Precision:\t{0:.4f}\nRecall:\t{0:.4f}".format(precision, recall)
