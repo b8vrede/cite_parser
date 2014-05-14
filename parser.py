@@ -96,7 +96,7 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                 law = ref[lawGroup].strip()
                 
                 # Checks whether the law matches the blacklist
-                BlackList = ["deze wet", "nederland", "onze minister", "wet", "die wet", "verdrag"]
+                BlackList = ["deze wet", "nederland", "onze minister", "wet", "die wet", "verdrag", "nederlanders", "nederlanderschap", "kroon", "koninkrijk"]
                 if law.lower() in BlackList:
                     law = None
                     
@@ -521,7 +521,7 @@ if __name__ == '__main__':
         # '(?:\.\s+)([A-Z].*?'  # Matches the entire sentence
         '([^a-zA-Z](?:(?:[Aa]rtikel|[Aa]rt\\.?) ([0-9][0-9a-z:.]*)|[Bb]oek ([0-9][0-9a-z:.]*)|[Hh]oofdstuk ([0-9][0-9a-z:.]*)),?'  # Matches Artikel and captures the number (and letter) combination for the article
         '((?:\s+(?:lid|aanhef en lid|aanhef en onder|onder)?(?:[0-9a-z ]|tot en met)+,?'  # matches "lid .. (tot en met ...)"
-        '|,? (?:[a-z]| en )+ lid,?)*)'  # matches a word followed by "lid" e.g. "eerste lid"
+        '|,? (?:[a-z]+ lid|[a-z]+ en [a-z]+ lid),?)*)'  # matches a word followed by "lid" e.g. "eerste lid"
         '(,? onderdeel [a-z],?)?'  # captures "onderdeel ..."
         '(,? sub [0-9],?)?'  # captures "sub ..."
         '(?:(?: van (?:de|het|)(?: wet)?|,?)? *'  # matches e.g. "van de wet "
