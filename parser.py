@@ -96,7 +96,7 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                 law = ref[lawGroup].strip()
                 
                 # Checks whether the law matches the blacklist
-                BlackList = ["deze wet", "nederland", "onze minister", "wet", "die wet", "het verdrag"]
+                BlackList = ["deze wet", "nederland", "onze minister", "wet", "die wet", "verdrag"]
                 if law.lower() in BlackList:
                     law = None
                     
@@ -127,6 +127,7 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                     succes.value += 1
                 else:
                     BWB = ""
+                    fail.value += 1
                 BWBmatch = None
                 if len(BWB) > 0:  # There is a BWB found
                     if len(BWB) > 1 \
@@ -524,7 +525,7 @@ if __name__ == '__main__':
         '(,? onderdeel [a-z],?)?'  # captures "onderdeel ..."
         '(,? sub [0-9],?)?'  # captures "sub ..."
         '(?:(?: van (?:de|het|)(?: wet)?|,?)? *'  # matches e.g. "van de wet "
-        '((?:(?:wet|bestuursrecht|Wetboek van|op het [A-Z0-9][a-zA-Z0-9]*|[A-Z0-9][a-zA-Z0-9]*);?(?:[^\S\n]*|\\.))+))? *'  # matches the Title
+        '((?:(?:wet|bestuursrecht|Wetboek van|op het [A-Z0-9][a-zA-Z0-9]*|[A-Z0-9][a-zA-Z0-9]*)(?:[^\S\n]*|\\.))+))? *'  # matches the Title
         '(?:\(([^\)]+?)\))?)'  # matches anything between () after the title
         # '.*?(?:\.|\:))(?:\s+[A-Z]|$)'
     )
