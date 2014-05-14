@@ -228,7 +228,7 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                             
                             if args.para:
                                 refSentenceNode = ET.SubElement(parentRefNode, unicode("dcterms:sentence"))
-                                refSentenceNode.text = unicode(tuple.get("ReferenceSentence"), errors='ignore')
+                                refSentenceNode.text = tuple.get("ReferenceSentence")
 
                                 
                         # Create the proper file location using python os libary to make it OS independent
