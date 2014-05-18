@@ -204,7 +204,7 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                     if e.text in refs:
                         for tuple in refs[e.text]:
                            # Create an new node in the first namespace
-                            parentRefNode = ET.SubElement(root, unicode("dcterms:references"))
+                            parentRefNode = ET.SubElement(root, unicode("{http://purl.org/dc/terms/}references"))
 
                             # Give it a tag indicating we are pointing at a BWB
                             parentRefNode.set(unicode("rdfs:label"), unicode("Wetsverwijzing"))
@@ -212,22 +212,24 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                             # Add a tag with the a string of the found BWBs, should be an URI
                             
                             if tuple.get("BWB") is not None:
-                                URI = "http://doc.metalex.eu:8080/page/id/" + tuple.get("BWB")
+                                URI = "1.0:v:BWB:" + tuple.get("BWB")
+                                URI_metalex = "http://doc.metalex.eu:8080/page/id/" + tuple.get("BWB")
                                 if tuple.get("Article") is not None:
-                                    URI += "/artikel/" + tuple.get("Article")
+                                    URI_metalex += "/artikel/" + tuple.get("Article")
+                                    URI += "&artikel=" + tuple.get("Article")
                             elif args.all:
-                                URI = "No BWB found"
+                                URI_metalex = "No BWB found"
+                                URI = None
                                 
-                            
-
-                            parentRefNode.set(unicode("resourceIdentifier"), unicode(URI))
+                            parentRefNode.set(unicode("{bwb-dl}resourceIdentifier"), unicode(URI))
+                            parentRefNode.set(unicode("metaLexResourceIdentifier"), unicode(URI_metalex))
 
                             # Set the text of the node to the text of the reference
-                            refStringNode = ET.SubElement(parentRefNode, unicode("dcterms:string"))
+                            refStringNode = ET.SubElement(parentRefNode, unicode("{http://purl.org/dc/terms/}string"))
                             refStringNode.text = tuple.get("ReferenceString")
                             
                             if args.para:
-                                refSentenceNode = ET.SubElement(parentRefNode, unicode("dcterms:sentence"))
+                                refSentenceNode = ET.SubElement(parentRefNode, unicode("{http://purl.org/dc/terms/}sentence"))
                                 refSentenceNode.text = tuple.get("ReferenceSentence")
 
                                 
