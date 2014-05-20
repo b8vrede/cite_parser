@@ -17,7 +17,7 @@ def find_ref(file):
      
     parser = ET.XMLParser(encoding="utf-8")
     xml = ET.parse(file, parser=parser)
-    refs = xml.findall("./rdf:RDF/rdf:Description/dcterms:references[@resourceIdentifier]", namespaces=nameSpace)
+    refs = xml.findall("./rdf:RDF/rdf:Description/dcterms:references[@metaLexResourceIdentifier]", namespaces=nameSpace)
     
     return refs
 
@@ -37,7 +37,7 @@ def eval_refs(refs):
     for ref in refs:
         counter += 1
         
-        url = ref.get("resourceIdentifier", "No URL atribute (shouldn't be possible!)")
+        url = ref.get("metaLexResourceIdentifier", "No URL atribute (shouldn't be possible!)")
         string = ref.findtext("{http://purl.org/dc/terms/}string", "No ref string!")
         para = ref.findtext("{http://purl.org/dc/terms/}sentence", "No para block!")
     
