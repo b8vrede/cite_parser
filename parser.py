@@ -159,7 +159,7 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                 # (https://docs.python.org/2/howto/unicode.html#the-unicode-type)
 
                 if args.para:
-                    tuple = {"ReferenceSentence": ref[7],
+                    tuple = {"ReferenceSentence": unicode(ref[9], errors='ignore'),
                              "ReferenceString": ref[0], "RawBWB": BWB, "BWB": BWBmatch,
                             "Article": ref[1]}
                 else :
@@ -207,7 +207,7 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                             parentRefNode = ET.SubElement(root, unicode("{http://purl.org/dc/terms/}references"))
 
                             # Give it a tag indicating we are pointing at a BWB
-                            parentRefNode.set(unicode("rdfs:label"), unicode("Wetsverwijzing"))
+                            parentRefNode.set(unicode("{http://www.w3.org/2000/01/rdf-schema#}label"), unicode("Wetsverwijzing"))
 
                             # Add a tag with the a string of the found BWBs, should be an URI
                             
