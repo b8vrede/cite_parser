@@ -122,9 +122,11 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                         # Increase the counters
                         fail.value += 1
                         errorScore += 1
-                elif cleanLaw is not None:  # No law was found but we have a previous law we can use, so we will use the current values
+                elif cleanLaw is not None and len(BWB) >= 1:  # No law was found but we have a previous law we can use, so we will use the current values
                     # Increase counter
                     succes.value += 1
+                    if args.verbose:
+                        print "Used inheritance for \"{}\" and replaced it with \"{}\"".format(law, cleanLaw)
                 else:
                     BWB = ""
                     fail.value += 1
@@ -166,7 +168,6 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                     tuple = {"ReferenceSentence": unicode(ref[0], errors='replace'),
                              "ReferenceString": unicode(ref[0], errors='replace'), "RawBWB": BWB, "BWB": BWBmatch,
                             "Article": ref[1]}
-
                 # Check whether the ECLI is already a key in the global dictionary refs
                 if e.text in refs:  # ECLI is in dictionary
 
@@ -203,6 +204,17 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                     # For each reference we found in this document do:
                     if e.text in refs:
                         for tuple in refs[e.text]:
+                            if tuple.get("BWB") is not None:
+                                URI = "1.0:v:BWB:" + tuple.get("BWB")
+                                URI_metalex = "http://doc.metalex.eu:8080/page/id/" + tuple.get("BWB")
+                                if tuple.get("Article") is not None:
+                                    URI_metalex += "/artikel/" + urllib.quote_plus(tuple.get("Article"))
+                                    URI += "&artikel=" + urllib.quote_plus(tuple.get("Article"))
+                            elif args.all:
+                                URI_metalex = "No BWB found"
+                                URI = None
+                            else:
+                                continue
                            # Create an new node in the first namespace
                             parentRefNode = ET.SubElement(root, unicode("{http://purl.org/dc/terms/}references"))
 
@@ -210,17 +222,6 @@ def parse_references(eclis, BWB_dict, total, succes, fail, refs, args, regex, la
                             parentRefNode.set(unicode("{http://www.w3.org/2000/01/rdf-schema#}label"), unicode("Wetsverwijzing"))
 
                             # Add a tag with the a string of the found BWBs, should be an URI
-                            
-                            if tuple.get("BWB") is not None:
-                                URI = "1.0:v:BWB:" + tuple.get("BWB")
-                                URI_metalex = "http://doc.metalex.eu:8080/page/id/" + tuple.get("BWB")
-                                if tuple.get("Article") is not None:
-                                    URI_metalex += "/artikel/" + tuple.get("Article")
-                                    URI += "&artikel=" + tuple.get("Article")
-                            elif args.all:
-                                URI_metalex = "No BWB found"
-                                URI = None
-                                
                             parentRefNode.set(unicode("{bwb-dl}resourceIdentifier"), unicode(URI))
                             parentRefNode.set(unicode("metaLexResourceIdentifier"), unicode(URI_metalex))
 
