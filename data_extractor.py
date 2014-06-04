@@ -89,9 +89,9 @@ def parse_refs():
             
             # Depending on parameters output edges with or without occurrence count
             if args.counts:
-                args.outputFile.write("\"{}\" \"{}\" {}\n".format(ECLI_URI, BWB_URI, counter[BWB_URI]))
+                args.outputFile.write("<{}> <{}> {}\n".format(ECLI_URI, BWB_URI, counter[BWB_URI]))
             else:
-                args.outputFile.write("\"{}\" \"{}\"\n".format(ECLI_URI, BWB_URI))
+                args.outputFile.write("<{}> <{}>\n".format(ECLI_URI, BWB_URI))
         
         # If we found refs, add the order list to the global dictonary
         if len(file_ref_order) >= 1:
@@ -99,7 +99,7 @@ def parse_refs():
     
     # Depending on parameters output a file with ECLI   [order of BWBs]
     if args.ordered:
-        file = os.path.normpath('output/Order_list.csv')
+        file = os.path.normpath('output\Order_list.csv')
         with open(file, "w") as myfile:
             for ecli in ref_order.keys():  
                 myfile.write("{}\t{}\n".format(ecli, ref_order[ecli]))

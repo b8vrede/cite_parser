@@ -221,3 +221,5 @@ rdfOutput.py
 *.rdf
 BWBArticleList.txt
 BWBList.txt
+*.edges
+*.png
