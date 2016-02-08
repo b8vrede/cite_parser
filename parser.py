@@ -16,7 +16,7 @@ EXAMPLES
 
 AUTHOR
 
-    Bart Vredebregt <bart.vredebregt@gmail.com>
+    Bart Vredebregt
 
 LICENSE
 
